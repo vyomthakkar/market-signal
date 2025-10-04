@@ -1,3 +1,6 @@
 pydantic
 playwright
+twscrape  # Modern alternative to snscrape, compatible with Python 3.13+
+beautifulsoup4  # For Nitter scraper
+requests  # For Nitter scraper
 
