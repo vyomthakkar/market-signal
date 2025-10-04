@@ -1,22 +1,46 @@
 {
-  "nifty50": {
-    "collected": 11,
-    "target": 2,
-    "percentage": 550.0
+  "hashtag_stats": {
+    "nifty50": {
+      "collected": 9,
+      "unique": 9,
+      "target": 2,
+      "percentage": 450.0
+    },
+    "sensex": {
+      "collected": 7,
+      "unique": 5,
+      "target": 2,
+      "percentage": 350.0
+    },
+    "intraday": {
+      "collected": 7,
+      "unique": 7,
+      "target": 2,
+      "percentage": 350.0
+    },
+    "banknifty": {
+      "collected": 7,
+      "unique": 3,
+      "target": 2,
+      "percentage": 350.0
+    }
   },
-  "sensex": {
-    "collected": 7,
-    "target": 2,
-    "percentage": 350.0
+  "global_stats": {
+    "unique_tweets": 24,
+    "duplicates_skipped": 6,
+    "total_processed": 30,
+    "deduplication_rate": 20.0
   },
-  "intraday": {
-    "collected": 7,
-    "target": 2,
-    "percentage": 350.0
-  },
-  "banknifty": {
-    "collected": 7,
-    "target": 2,
-    "percentage": 350.0
+  "rate_limiter_stats": {
+    "current_rate": 10.0,
+    "min_rate": 1.0,
+    "max_rate": 20.0,
+    "rate_limit_count": 0,
+    "success_count": 8,
+    "name": "default",
+    "rate": 10.0,
+    "capacity": 20,
+    "current_tokens": 19,
+    "utilization": 5.000000000000004
   }
 }

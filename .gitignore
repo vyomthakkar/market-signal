@@ -50,7 +50,10 @@ debug/*
 # Credentials (if storing in config files)
 config.json
 .env
+.env.local
+.env.production
 secrets.yml
+*.db  # SQLite databases (like accounts.db)
 
 # Logs
 *.log

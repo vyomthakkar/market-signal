@@ -422,7 +422,7 @@ async def main():
         # Login credentials - YOU NEED TO PROVIDE THESE
         TWITTER_USERNAME = "curiousco4"
         TWITTER_PASSWORD = "schrodinger"
-        TWITTER_EMAIL = None  # Add your email if Twitter asks for verification
+        TWITTER_EMAIL = "containercurious@gmail.com"  # Add your email if Twitter asks for verification
         
         await scraper.login(TWITTER_USERNAME, TWITTER_PASSWORD, TWITTER_EMAIL)
         
