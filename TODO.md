@@ -1,0 +1,2 @@
+- Better progress bar for scraping progress
+- consider if circular buffer is needed for better memory management.
