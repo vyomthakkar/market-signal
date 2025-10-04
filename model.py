@@ -8,7 +8,6 @@ class Tweet(BaseModel):
     # Core identification
     tweet_id: Optional[str] = None  # If you can extract it
     username: str
-    user_display_name: Optional[str] = None
     user_handle: str = Field(..., description="@username format")
     
     # Content
@@ -63,19 +62,6 @@ class Tweet(BaseModel):
     def clean_content(cls, v: str) -> str:
         """Basic content cleaning"""
         return v.strip()
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "username": "TraderRaj",
-                "user_handle": "@traderraj",
-                "content": "Nifty50 showing strong support at 19800. Expecting bounce back! #nifty50 #intraday",
-                "timestamp": "2024-10-04T10:30:00",
-                "likes": 45,
-                "retweets": 12,
-                "replies": 5,
-                "views": 1200,
-                "hashtags": ["nifty50", "intraday"],
-                "mentions": []
-            }
-        }
+        
+        
+        
