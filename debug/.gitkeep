@@ -1,0 +1,3 @@
+# This file ensures the debug/ folder is tracked by git
+# Screenshots from the most recent run are stored here and auto-cleaned on each run
+

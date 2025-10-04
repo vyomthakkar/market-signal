@@ -22,14 +22,28 @@ import json
 import logging
 from typing import List, Dict
 import random
+from pathlib import Path
+import shutil
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Debug folder for screenshots
+DEBUG_DIR = Path(__file__).parent.parent.parent / "debug"
 
 class TwitterScraper:
     def __init__(self, headless: bool = True):
         self.headless = headless
         self.tweets_data = []
+        self._setup_debug_folder()
+        
+    def _setup_debug_folder(self):
+        """Create debug folder and clean old screenshots from previous run"""
+        DEBUG_DIR.mkdir(exist_ok=True)
+        # Clean up old screenshots from previous run
+        for old_screenshot in DEBUG_DIR.glob("*.png"):
+            old_screenshot.unlink()
+        logger.info(f"Debug folder ready: {DEBUG_DIR}")
         
     async def setup_browser(self):
         """Initialize browser with anti-detection measures"""
@@ -87,8 +101,9 @@ class TwitterScraper:
             await asyncio.sleep(2)
             
             # Take a screenshot before clicking Next
-            await self.page.screenshot(path='before_next.png')
-            logger.info("Screenshot saved to before_next.png")
+            screenshot_path = DEBUG_DIR / 'before_next.png'
+            await self.page.screenshot(path=str(screenshot_path))
+            logger.info(f"Screenshot saved to {screenshot_path}")
             
             # Click Next button and wait for navigation
             logger.info("Clicking Next button...")
@@ -99,8 +114,9 @@ class TwitterScraper:
             await asyncio.sleep(random.uniform(4, 5))
             
             # Take screenshot after click
-            await self.page.screenshot(path='after_next.png')
-            logger.info("Screenshot saved to after_next.png")
+            screenshot_path = DEBUG_DIR / 'after_next.png'
+            await self.page.screenshot(path=str(screenshot_path))
+            logger.info(f"Screenshot saved to {screenshot_path}")
             
             # Check for any error messages
             try:
@@ -126,7 +142,9 @@ class TwitterScraper:
                     await asyncio.sleep(random.uniform(2, 3))
                 else:
                     logger.error("Email/phone verification required but not provided!")
-                    await self.page.screenshot(path='verification_required.png')
+                    screenshot_path = DEBUG_DIR / 'verification_required.png'
+                    await self.page.screenshot(path=str(screenshot_path))
+                    logger.info(f"Screenshot saved to {screenshot_path}")
                     raise Exception("Email/phone verification required. Please provide email parameter.")
             except Exception as e:
                 if "Timeout" not in str(e):
@@ -160,8 +178,9 @@ class TwitterScraper:
                 
             except Exception as e:
                 logger.error(f"Error finding password field: {e}")
-                await self.page.screenshot(path='password_field_error.png')
-                logger.info("Screenshot saved to password_field_error.png")
+                screenshot_path = DEBUG_DIR / 'password_field_error.png'
+                await self.page.screenshot(path=str(screenshot_path))
+                logger.info(f"Screenshot saved to {screenshot_path}")
                 raise
             
             # Click Log in button
@@ -180,8 +199,9 @@ class TwitterScraper:
             logger.error(f"Login failed: {e}")
             # Take a screenshot for debugging
             try:
-                await self.page.screenshot(path='login_error.png')
-                logger.info("Screenshot saved to login_error.png")
+                screenshot_path = DEBUG_DIR / 'login_error.png'
+                await self.page.screenshot(path=str(screenshot_path))
+                logger.info(f"Screenshot saved to {screenshot_path}")
             except:
                 pass
             raise
@@ -410,7 +430,7 @@ async def main():
         hashtags = ['nifty50', 'sensex', 'intraday', 'banknifty']
         
         # Scrape tweets (aim for 50 per hashtag for testing, 500+ for production)
-        result = await scraper.scrape_multiple_hashtags(hashtags, tweets_per_tag=50)
+        result = await scraper.scrape_multiple_hashtags(hashtags, tweets_per_tag=2)
         
         tweets = result['tweets']
         statistics = result['statistics']

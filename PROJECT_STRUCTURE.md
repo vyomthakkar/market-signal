@@ -26,6 +26,10 @@ market-signal/
 │   ├── SCRAPER_COMPARISON.md        # Comparison of all scrapers
 │   └── SCRAPER_IMPROVEMENTS.md      # Development notes
 │
+├── 📁 debug/                         # Debug screenshots (auto-cleaned each run)
+│   ├── .gitkeep                     # Keeps folder in git
+│   └── README.md                    # Debug folder documentation
+│
 ├── 📁 tests/                         # Unit tests (to be added)
 │
 ├── 📄 run_scraper.py                # Main entry point ⭐
@@ -73,13 +77,20 @@ market-signal/
 | `README.md` | Main project documentation |
 | `.gitignore` | Files to exclude from git |
 
+### Debug Folder (`debug/`)
+
+| File | Content |
+|------|---------|
+| `.gitkeep` | Keeps folder tracked in git |
+| `README.md` | Debug folder documentation |
+| `*.png` | Screenshots from most recent run (auto-cleaned) |
+
 ### Output Files (Generated)
 
 | File | Content |
 |------|---------|
 | `raw_tweets.json` | Collected tweets in JSON format |
 | `collection_stats.json` | Statistics per hashtag |
-| `*.png` | Screenshots (for debugging) |
 
 ## Usage
 

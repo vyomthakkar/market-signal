@@ -42,8 +42,10 @@ htmlcov/
 # Project specific
 raw_tweets*.json
 collection_stats*.json
-*.png
-!docs/*.png
+
+# Debug folder contents (but keep the folder)
+debug/*
+!debug/.gitkeep
 
 # Credentials (if storing in config files)
 config.json
