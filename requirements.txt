@@ -5,3 +5,9 @@ beautifulsoup4  # For Nitter scraper
 requests  # For Nitter scraper
 python-dotenv  # Environment variable management
 
+# Data Processing & Storage (Phase 1 & 2)
+pyarrow>=15.0.0  # Parquet storage (fast and efficient)
+pandas>=2.2.0  # DataFrame operations
+langdetect>=1.0.9  # Language detection for multilingual content
+unicodedata2>=15.1.0  # Enhanced Unicode normalization
+

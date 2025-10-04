@@ -44,6 +44,8 @@ from core.exceptions import (
 from core.rate_limiter import AdaptiveRateLimiter
 from core.retry import retry_async, CircuitBreaker
 from data.collector import TweetCollector
+from data.processor import TweetProcessor  # Phase 1: Data cleaning
+from data.storage import StorageManager  # Phase 2: Parquet storage
 from config.settings import load_config, TwitterCredentials
 
 logging.basicConfig(
@@ -656,23 +658,68 @@ async def main():
         tweets = result['tweets']
         statistics = result['statistics']
         
-        # Save tweets to JSON
-        output_file = config.get_output_path(config.output_tweets_file)
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(tweets, f, ensure_ascii=False, indent=2)
+        logger.info(f"\n{'='*60}")
+        logger.info("PHASE 1 & 2: DATA PROCESSING & STORAGE")
+        logger.info(f"{'='*60}")
+        
+        # Phase 1: Data Cleaning & Normalization
+        if config.enable_data_cleaning:
+            logger.info("🧹 Cleaning and normalizing tweet data...")
+            processor = TweetProcessor(
+                remove_urls=config.remove_urls_from_content,
+                detect_language=config.detect_language,
+                normalize_unicode=config.normalize_unicode
+            )
+            
+            tweets = processor.process_batch(tweets)
+            processing_stats = processor.get_stats()
+            
+            logger.info(f"✓ Processing complete:")
+            logger.info(f"  Processed: {processing_stats['processed']}")
+            logger.info(f"  Errors: {processing_stats['errors']}")
+            logger.info(f"  Success rate: {processing_stats['success_rate']:.1f}%")
+            
+            # Add processing stats to statistics
+            result['processing_stats'] = processing_stats
+        else:
+            logger.info("⚠ Data cleaning disabled")
+        
+        # Phase 2: Multi-format Storage
+        logger.info("\n💾 Saving data...")
+        storage = StorageManager(config.output_dir)
+        
+        # Save in both JSON and Parquet
+        saved_paths = storage.save_tweets(
+            tweets,
+            save_json=config.save_json,
+            save_parquet=config.save_parquet,
+            json_filename=config.output_tweets_file,
+            parquet_filename=config.parquet_filename
+        )
         
         # Save statistics
-        stats_file = config.get_output_path(config.output_stats_file)
-        with open(stats_file, 'w', encoding='utf-8') as f:
-            json.dump({
-                'hashtag_stats': statistics,
-                'global_stats': result['global_stats'],
-                'rate_limiter_stats': result['rate_limiter_stats']
-            }, f, ensure_ascii=False, indent=2)
+        stats_data = {
+            'hashtag_stats': statistics,
+            'global_stats': result['global_stats'],
+            'rate_limiter_stats': result['rate_limiter_stats']
+        }
         
-        logger.info(f"\n✓ Data saved to {output_file}")
-        logger.info(f"✓ Statistics saved to {stats_file}")
-        logger.info(f"\n📊 Total unique tweets collected: {len(tweets)}")
+        if 'processing_stats' in result:
+            stats_data['processing_stats'] = result['processing_stats']
+        
+        stats_file = storage.save_statistics(stats_data, config.output_stats_file)
+        
+        # Summary
+        logger.info(f"\n{'='*60}")
+        logger.info("COLLECTION COMPLETE")
+        logger.info(f"{'='*60}")
+        if 'json' in saved_paths:
+            logger.info(f"✓ JSON: {saved_paths['json']}")
+        if 'parquet' in saved_paths:
+            logger.info(f"✓ Parquet: {saved_paths['parquet']}")
+        logger.info(f"✓ Statistics: {stats_file}")
+        logger.info(f"\n📊 Total unique tweets: {len(tweets)}")
+        logger.info(f"{'='*60}\n")
         
     except LoginException as e:
         logger.error(f"❌ Login failed: {e}")

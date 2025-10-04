@@ -1,0 +1,65 @@
+[
+  {
+    "tweet_id": "001",
+    "username": "trader_ram",
+    "timestamp": "2025-10-04T10:00:00+00:00",
+    "content": "नमस्ते! #Nifty50 looking bullish today 📈 http://t.co/xyz",
+    "replies": 5,
+    "retweets": 10,
+    "likes": 25,
+    "views": 100,
+    "hashtags": [
+      "nifty50"
+    ],
+    "mentions": [],
+    "cleaned_content": "नमस्ते! #Nifty50 looking bullish today 📈",
+    "detected_language": "en",
+    "extracted_urls": [
+      "http://t.co/xyz"
+    ],
+    "processed_at": "2025-10-04T20:44:19.532663"
+  },
+  {
+    "tweet_id": "002",
+    "username": "market_guru",
+    "timestamp": "2025-10-04T11:00:00+00:00",
+    "content": "Buy @TCS @Infosys #StockMarket #Trading http://example.com",
+    "replies": 2,
+    "retweets": 5,
+    "likes": 15,
+    "views": 50,
+    "hashtags": [
+      "stockmarket",
+      "trading"
+    ],
+    "mentions": [
+      "tcs",
+      "infosys"
+    ],
+    "cleaned_content": "Buy @TCS @Infosys #StockMarket #Trading",
+    "detected_language": "unknown",
+    "extracted_urls": [
+      "http://example.com"
+    ],
+    "processed_at": "2025-10-04T20:44:19.532688"
+  },
+  {
+    "tweet_id": "003",
+    "username": "tamil_trader",
+    "timestamp": "2025-10-04T12:00:00+00:00",
+    "content": "மிகவும் நல்ல வர்த்தக நாள் #Sensex #India",
+    "replies": 1,
+    "retweets": 3,
+    "likes": 8,
+    "views": 30,
+    "hashtags": [
+      "sensex",
+      "india"
+    ],
+    "mentions": [],
+    "cleaned_content": "மிகவும் நல்ல வர்த்தக நாள் #Sensex #India",
+    "detected_language": "ta",
+    "extracted_urls": [],
+    "processed_at": "2025-10-04T20:44:19.533723"
+  }
+]

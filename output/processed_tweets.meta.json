@@ -1,0 +1,43 @@
+{
+  "created_at": "2025-10-04T20:44:19.639415",
+  "tweet_count": 24,
+  "columns": [
+    "tweet_id",
+    "username",
+    "timestamp",
+    "content",
+    "replies",
+    "retweets",
+    "likes",
+    "views",
+    "hashtags",
+    "mentions",
+    "cleaned_content",
+    "detected_language",
+    "extracted_urls",
+    "processed_at"
+  ],
+  "schema": {
+    "tweet_id": "object",
+    "username": "object",
+    "timestamp": "object",
+    "content": "object",
+    "replies": "int64",
+    "retweets": "int64",
+    "likes": "int64",
+    "views": "int64",
+    "hashtags": "object",
+    "mentions": "object",
+    "cleaned_content": "object",
+    "detected_language": "object",
+    "extracted_urls": "object",
+    "processed_at": "object"
+  },
+  "compression": "snappy",
+  "file_size_bytes": 19246,
+  "parquet_file": "processed_tweets.parquet",
+  "language_distribution": {
+    "en": 24
+  },
+  "unique_users": 15
+}

@@ -68,6 +68,18 @@ class ScraperConfig(BaseModel):
     output_tweets_file: str = Field("raw_tweets.json", description="Output tweets filename")
     output_stats_file: str = Field("collection_stats.json", description="Output stats filename")
     
+    # Storage settings (Phase 2)
+    save_json: bool = Field(True, description="Save tweets as JSON (backward compatibility)")
+    save_parquet: bool = Field(True, description="Save tweets as Parquet (efficient storage)")
+    parquet_filename: str = Field("tweets.parquet", description="Parquet output filename")
+    parquet_compression: str = Field("snappy", description="Parquet compression: snappy, gzip, zstd")
+    
+    # Data processing settings (Phase 1)
+    enable_data_cleaning: bool = Field(True, description="Enable data cleaning and normalization")
+    remove_urls_from_content: bool = Field(True, description="Remove URLs from cleaned content")
+    detect_language: bool = Field(True, description="Detect tweet language")
+    normalize_unicode: bool = Field(True, description="Normalize Unicode characters")
+    
     # Debugging
     debug_screenshots: bool = Field(True, description="Save debug screenshots")
     debug_dir: Path = Field(

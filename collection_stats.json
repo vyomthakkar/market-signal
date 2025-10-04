@@ -42,5 +42,10 @@
     "capacity": 20,
     "current_tokens": 19,
     "utilization": 5.000000000000004
+  },
+  "processing_stats": {
+    "processed": 24,
+    "errors": 0,
+    "success_rate": 100.0
   }
 }

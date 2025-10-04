@@ -3,15 +3,25 @@ from typing import Optional, List
 from datetime import datetime
 
 class Tweet(BaseModel):
-    """Model for storing scraped tweet data from Indian stock market discussions"""
+    """
+    Model for storing scraped tweet data from Indian stock market discussions.
+    
+    Enhanced with Phase 1 & 2 improvements:
+    - Cleaned content fields
+    - Language detection
+    - URL extraction
+    - Processing metadata
+    """
     
     # Core identification
     tweet_id: Optional[str] = None  # If you can extract it
     username: str
     user_handle: str = Field(..., description="@username format")
     
-    # Content
-    content: str = Field(..., min_length=1)
+    # Content (original and cleaned)
+    content: str = Field(..., min_length=1, description="Original tweet content")
+    cleaned_content: Optional[str] = Field(None, description="Cleaned and normalized content")
+    
     timestamp: datetime
     
     # Engagement metrics
@@ -25,6 +35,11 @@ class Tweet(BaseModel):
     # Extracted entities
     hashtags: List[str] = Field(default_factory=list)
     mentions: List[str] = Field(default_factory=list)
+    extracted_urls: List[str] = Field(default_factory=list, description="URLs extracted from content")
+    
+    # Language & Processing (Phase 1 additions)
+    detected_language: Optional[str] = Field(default="unknown", description="ISO 639-1 language code")
+    processed_at: Optional[datetime] = Field(None, description="When tweet was processed")
     
     # Metadata
     tweet_url: Optional[str] = None
@@ -33,7 +48,7 @@ class Tweet(BaseModel):
     scraped_at: datetime = Field(default_factory=datetime.now)
     
     # Optional - useful for analysis
-    language: Optional[str] = "en"
+    language: Optional[str] = "en"  # Kept for backward compatibility
     has_media: bool = False
     media_urls: List[str] = Field(default_factory=list)
     
