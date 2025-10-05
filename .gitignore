@@ -43,8 +43,9 @@ htmlcov/
 # (output files now tracked for assignment submission)
 
 # Debug folder contents (but keep the folder)
-debug/*
+debug/*.json
 !debug/.gitkeep
+# Temporarily allow debug screenshots for troubleshooting
 
 # Credentials (if storing in config files)
 config.json
