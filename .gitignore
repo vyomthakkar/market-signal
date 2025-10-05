@@ -40,8 +40,7 @@ ENV/
 htmlcov/
 
 # Project specific
-raw_tweets*.json
-collection_stats*.json
+# (output files now tracked for assignment submission)
 
 # Debug folder contents (but keep the folder)
 debug/*

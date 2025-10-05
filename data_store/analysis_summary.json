@@ -1,0 +1,40 @@
+{
+  "total_tweets": 502,
+  "hashtags_scraped": [
+    "nifty50"
+  ],
+  "unique_users": 271,
+  "languages": {
+    "en": "431",
+    "unknown": "21",
+    "id": "8",
+    "vi": "7",
+    "de": "6",
+    "ro": "4",
+    "mr": "3",
+    "sw": "3",
+    "so": "3",
+    "fr": "2",
+    "da": "2",
+    "sv": "2",
+    "lv": "1",
+    "it": "1",
+    "ca": "1",
+    "af": "1",
+    "tl": "1",
+    "hi": "1",
+    "sl": "1",
+    "pt": "1",
+    "et": "1",
+    "sq": "1"
+  },
+  "time_range": {
+    "earliest": "2025-10-03 05:47:50+00:00",
+    "latest": "2025-10-05 08:34:00+00:00"
+  },
+  "engagement": {
+    "total_likes": 0,
+    "total_retweets": 0,
+    "total_replies": 0
+  }
+}
