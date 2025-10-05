@@ -1,0 +1,300 @@
+#!/usr/bin/env python3
+"""
+Signal Analysis Script
+
+Analyzes tweets from data_store and generates:
+- Per-hashtag signals
+- Overall market sentiment
+- JSON report with full analysis
+
+Usage:
+    python run/2_analyze_signals.py [--input DATA_FILE] [--output OUTPUT_DIR]
+"""
+
+import sys
+import argparse
+import logging
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import pandas as pd
+from src.analysis.features import analyze_tweets
+from utils.hashtag_analyzer import HashtagAnalyzer
+from utils.market_aggregator import MarketAggregator
+from utils.report_generator import ReportGenerator
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+def load_data(input_file: Path) -> pd.DataFrame:
+    """
+    Load tweet data from parquet or JSON file
+    
+    Args:
+        input_file: Path to data file (parquet or JSON)
+        
+    Returns:
+        DataFrame with tweets
+    """
+    logger.info(f"Loading data from {input_file}")
+    
+    if not input_file.exists():
+        raise FileNotFoundError(f"Input file not found: {input_file}")
+    
+    # Auto-detect format based on extension
+    file_ext = input_file.suffix.lower()
+    
+    if file_ext == '.json':
+        logger.info("Detected JSON format")
+        import json
+        with open(input_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        df = pd.DataFrame(data)
+    elif file_ext == '.parquet':
+        logger.info("Detected Parquet format")
+        df = pd.read_parquet(input_file)
+    else:
+        # Try parquet first, fallback to JSON
+        logger.warning(f"Unknown extension '{file_ext}', trying to detect format...")
+        try:
+            df = pd.read_parquet(input_file)
+            logger.info("Successfully loaded as Parquet")
+        except:
+            try:
+                import json
+                with open(input_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                df = pd.DataFrame(data)
+                logger.info("Successfully loaded as JSON")
+            except Exception as e:
+                raise ValueError(f"Could not load file as Parquet or JSON: {e}")
+    
+    logger.info(f"Loaded {len(df)} tweets")
+    
+    # Validate required columns
+    required_cols = ['content', 'hashtags']
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    
+    if missing_cols:
+        # Try alternative column names
+        if 'cleaned_content' in df.columns:
+            df['content'] = df['cleaned_content']
+        else:
+            raise ValueError(f"Missing required columns: {missing_cols}")
+    
+    return df
+
+
+def run_feature_analysis(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Run sentiment, engagement, TF-IDF analysis on tweets
+    
+    Args:
+        df: DataFrame with raw tweets
+        
+    Returns:
+        DataFrame with complete feature analysis
+    """
+    logger.info("Running feature extraction (sentiment, engagement, TF-IDF)...")
+    logger.info("This may take a few minutes for the first run (model download)")
+    
+    # Convert to list of dicts for analyze_tweets function
+    tweets = df.to_dict('records')
+    
+    # Run complete analysis
+    analyzed_df = analyze_tweets(
+        tweets,
+        keyword_boost_weight=0.3,
+        include_engagement=True,
+        include_tfidf=True,
+        calculate_signals=True
+    )
+    
+    logger.info(f"Feature extraction complete for {len(analyzed_df)} tweets")
+    return analyzed_df
+
+
+def analyze_by_hashtag(df: pd.DataFrame) -> dict:
+    """
+    Group tweets by hashtag and calculate per-hashtag signals
+    
+    Args:
+        df: DataFrame with analyzed tweets
+        
+    Returns:
+        Dict of hashtag -> analysis
+    """
+    logger.info("Analyzing signals per hashtag...")
+    
+    analyzer = HashtagAnalyzer(
+        min_tweets=20,  # Minimum tweets per hashtag
+        min_confidence=0.3  # Minimum confidence threshold
+    )
+    
+    hashtag_analyses = analyzer.analyze_by_hashtag(df)
+    
+    logger.info(f"Analyzed {len(hashtag_analyses)} hashtags")
+    return hashtag_analyses
+
+
+def aggregate_market_signal(hashtag_analyses: dict, total_tweets: int) -> dict:
+    """
+    Aggregate hashtag signals into overall market sentiment
+    
+    Args:
+        hashtag_analyses: Per-hashtag analyses
+        total_tweets: Total number of tweets
+        
+    Returns:
+        Overall market signal dict
+    """
+    logger.info("Aggregating overall market signal...")
+    
+    aggregator = MarketAggregator(min_confidence=0.4)
+    
+    overall_market = aggregator.aggregate_market_signal(
+        hashtag_analyses,
+        total_tweets
+    )
+    
+    logger.info(f"Overall market signal: {overall_market['signal_label']} "
+                f"({overall_market['signal_score']:+.2f})")
+    
+    return overall_market
+
+
+def save_outputs(
+    analyzed_df: pd.DataFrame,
+    overall_market: dict,
+    hashtag_analyses: dict,
+    output_dir: Path,
+    input_file: Path
+):
+    """
+    Save all outputs (parquet, JSON, console summary)
+    
+    Args:
+        analyzed_df: DataFrame with analyzed tweets
+        overall_market: Overall market signal
+        hashtag_analyses: Per-hashtag analyses
+        output_dir: Output directory
+        input_file: Input file path (for metadata)
+    """
+    logger.info(f"Saving outputs to {output_dir}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 1. Save analyzed tweets to parquet
+    analyzed_tweets_path = output_dir / 'analyzed_tweets.parquet'
+    analyzed_df.to_parquet(analyzed_tweets_path, index=False, compression='snappy')
+    logger.info(f"✓ Saved analyzed tweets to {analyzed_tweets_path}")
+    
+    # 2. Generate and save JSON report
+    report_gen = ReportGenerator(output_dir=str(output_dir))
+    
+    metadata = {
+        'input_file': str(input_file),
+        'total_tweets_analyzed': len(analyzed_df)
+    }
+    
+    report = report_gen.generate_report(
+        overall_market=overall_market,
+        hashtag_analyses=hashtag_analyses,
+        metadata=metadata
+    )
+    
+    report_path = report_gen.save_report(report, filename='signal_report.json')
+    logger.info(f"✓ Saved JSON report to {report_path}")
+    
+    # 3. Print console summary
+    report_gen.print_console_summary(report)
+
+
+def main():
+    """Main execution function"""
+    parser = argparse.ArgumentParser(
+        description='Analyze tweet signals and generate market sentiment report'
+    )
+    parser.add_argument(
+        '--input',
+        type=str,
+        default='data_store/tweets_incremental.parquet',
+        help='Input parquet file with tweets (default: data_store/tweets_incremental.parquet)'
+    )
+    parser.add_argument(
+        '--output',
+        type=str,
+        default='output',
+        help='Output directory for results (default: output)'
+    )
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        help='Enable verbose logging'
+    )
+    
+    args = parser.parse_args()
+    
+    # Set logging level
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+    
+    # Get project root (parent of run/ directory)
+    project_root = Path(__file__).parent.parent
+    
+    # Convert paths (make them absolute relative to project root if they're relative)
+    input_file = Path(args.input)
+    if not input_file.is_absolute():
+        input_file = project_root / input_file
+    
+    output_dir = Path(args.output)
+    if not output_dir.is_absolute():
+        output_dir = project_root / output_dir
+    
+    try:
+        print("\n" + "="*80)
+        print("🚀 MARKET SIGNAL ANALYSIS - STARTING")
+        print("="*80 + "\n")
+        
+        # Step 1: Load data
+        df = load_data(input_file)
+        
+        # Step 2: Run feature analysis (sentiment, engagement, TF-IDF, signals)
+        analyzed_df = run_feature_analysis(df)
+        
+        # Step 3: Analyze per hashtag
+        hashtag_analyses = analyze_by_hashtag(analyzed_df)
+        
+        # Step 4: Aggregate to overall market signal
+        overall_market = aggregate_market_signal(hashtag_analyses, len(analyzed_df))
+        
+        # Step 5: Save outputs and print summary
+        save_outputs(
+            analyzed_df,
+            overall_market,
+            hashtag_analyses,
+            output_dir,
+            input_file
+        )
+        
+        print("\n" + "="*80)
+        print("✅ ANALYSIS COMPLETE!")
+        print("="*80)
+        print(f"\nOutputs saved to: {output_dir}")
+        print(f"  • analyzed_tweets.parquet - Full tweet-level analysis")
+        print(f"  • signal_report.json - Market signal report")
+        print()
+        
+    except Exception as e:
+        logger.error(f"Analysis failed: {e}", exc_info=True)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,45 @@
+{
+  "metadata": {
+    "generated_at": "2025-10-05T16:42:24.994097",
+    "version": "1.0.0",
+    "input_file": "/Users/vyomthakkar/Downloads/market-signal/data_store/tweets_incremental.parquet",
+    "total_tweets_analyzed": 2030
+  },
+  "overall_market": {
+    "signal_label": "HOLD",
+    "signal_score": 0.0,
+    "confidence": 0.0,
+    "consensus": "NONE",
+    "total_tweets": 0,
+    "hashtag_count": 0,
+    "signal_variance": 0.0,
+    "sentiment_distribution": {
+      "bullish_count": 0,
+      "bearish_count": 0,
+      "neutral_count": 0,
+      "bullish_ratio": 0.0,
+      "bearish_ratio": 0.0,
+      "neutral_ratio": 0.0
+    },
+    "signal_distribution": {},
+    "hashtag_ranking": [],
+    "risk_indicators": {
+      "signal_volatility": 0.0,
+      "volatility_level": "NONE",
+      "low_confidence_tweets": 0,
+      "low_confidence_ratio": 0.0,
+      "ignored_tweets": 0,
+      "overall_confidence_level": "NONE"
+    },
+    "weighting_method": "volume_based"
+  },
+  "hashtags": {},
+  "summary": {
+    "market_direction": "NEUTRAL",
+    "confidence_level": "NONE",
+    "strongest_bullish_hashtag": null,
+    "strongest_bearish_hashtag": null,
+    "total_hashtags_analyzed": 0,
+    "recommendation": "Insufficient confidence for trading action. Monitor the market. ⚠️ Low confidence - signal reliability is questionable."
+  }
+}
