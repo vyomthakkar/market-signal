@@ -1,7 +1,15 @@
 # X/Twitter posts -> market signals
 
-
 A three-phase pipeline for collecting, analyzing, and visualizing market sentiment from Twitter/X discussions about Indian stock market indices.
+
+---
+
+## 📚 Documentation
+
+- **[`qodeassignment-technical-documentation.pdf`](qodeassignment-technical-documentation.pdf)** - Technical implementation notes, algorithms, and architecture
+- **[`qodeassignment-output.pdf`](qodeassignment-output.pdf)** - Detailed explanation of outputs, results, and visualizations
+
+---
 
 ## 🚀 Quick Start
 
