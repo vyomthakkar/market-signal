@@ -183,23 +183,33 @@ class ReportGenerator:
         
         # Hashtag ranking
         print(f"\n🏆 Hashtag Performance Ranking:")
-        for item in overall['hashtag_ranking'][:5]:  # Top 5
+        hashtag_list = []
+        for hashtag, analysis in report['hashtags'].items():
+            hashtag_list.append({
+                'hashtag': hashtag,
+                'signal_score': analysis['signal_score'],
+                'signal_label': analysis['signal_label'],
+                'confidence': analysis['confidence']
+            })
+        
+        # Sort by absolute signal score
+        hashtag_list.sort(key=lambda x: abs(x['signal_score']), reverse=True)
+        
+        for rank, item in enumerate(hashtag_list[:10], 1):  # Show top 10
             emoji = self._get_signal_emoji(item['signal_label'])
-            print(f"   {item['rank']}. #{item['hashtag']}: {item['signal_label']} "
+            print(f"   {rank}. #{item['hashtag']}: {item['signal_label']} "
                   f"({item['signal_score']:+.2f}, {item['confidence']*100:.1f}% conf) {emoji}")
         
         # Risk indicators
-        risk = overall['risk_indicators']
+        risk = report['overall_market']['risk_indicators']
         print(f"\n⚠️  Risk Indicators:")
         print(f"   Signal Volatility: {risk['volatility_level']} ({risk['signal_volatility']:.2f})")
         print(f"   Confidence Level: {risk['overall_confidence_level']}")
-        print(f"   Low Confidence Tweets: {risk['low_confidence_tweets']:,} ({risk['low_confidence_ratio']*100:.1f}%)")
         
         print("\n" + "="*80)
         print("✅ Analysis Complete!")
         print("="*80)
         print(f"\n📄 Full report saved to: {self.output_dir / 'signal_report.json'}")
-        print()
     
     def _get_signal_emoji(self, label: str) -> str:
         """Get emoji for signal label"""

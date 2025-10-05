@@ -31,7 +31,8 @@ class MarketAggregator:
     def aggregate_market_signal(
         self,
         hashtag_analyses: Dict,
-        total_tweets: int
+        total_tweets: int,
+        df_tweets = None
     ) -> Dict:
         """
         Aggregate per-hashtag signals into overall market sentiment
@@ -39,6 +40,7 @@ class MarketAggregator:
         Args:
             hashtag_analyses: Dict from HashtagAnalyzer (hashtag -> analysis)
             total_tweets: Total number of tweets analyzed
+            df_tweets: Optional DataFrame with tweet-level data for accurate stats
             
         Returns:
             Dict with overall market signal and statistics
@@ -82,8 +84,8 @@ class MarketAggregator:
         # Market consensus
         consensus = self._calculate_market_consensus(signals, volume_weights)
         
-        # Sentiment distribution across market
-        sentiment_dist = self._aggregate_sentiment_distribution(hashtag_analyses, volumes)
+        # Sentiment distribution across market (tweet-level)
+        sentiment_dist = self._calculate_tweet_level_sentiment(df_tweets, total_tweets) if df_tweets is not None else self._aggregate_sentiment_distribution(hashtag_analyses, volumes)
         
         # Signal distribution
         signal_dist = self._aggregate_signal_distribution(hashtag_analyses, volumes)
@@ -93,7 +95,7 @@ class MarketAggregator:
         
         # Risk indicators
         risk_indicators = self._calculate_risk_indicators(
-            hashtag_analyses, signal_std, aggregate_confidence, total_tweets
+            hashtag_analyses, signal_std, aggregate_confidence, total_tweets, df_tweets
         )
         
         return {
@@ -224,26 +226,80 @@ class MarketAggregator:
         
         return rankings
     
+    def _calculate_tweet_level_sentiment(self, df, total_tweets: int) -> Dict:
+        """
+        Calculate sentiment distribution at tweet level (no double counting)
+        
+        Args:
+            df: DataFrame with tweet-level data
+            total_tweets: Total number of tweets
+            
+        Returns:
+            Dict with tweet-level sentiment counts and ratios
+        """
+        if df is None or df.empty:
+            return {
+                'bullish_count': 0,
+                'bearish_count': 0,
+                'neutral_count': 0,
+                'low_confidence_count': 0,
+                'bullish_ratio': 0.0,
+                'bearish_ratio': 0.0,
+                'neutral_ratio': 0.0,
+                'low_confidence_ratio': 0.0
+            }
+        
+        # Classify tweets by sentiment (only high confidence ones)
+        high_conf = df['confidence'] >= 0.3
+        
+        # For high confidence tweets, classify by sentiment
+        bullish = (df['combined_sentiment_score'] > 0.1) & high_conf
+        bearish = (df['combined_sentiment_score'] < -0.1) & high_conf
+        neutral = (df['combined_sentiment_score'].between(-0.1, 0.1)) & high_conf
+        low_conf = ~high_conf
+        
+        bullish_count = int(bullish.sum())
+        bearish_count = int(bearish.sum())
+        neutral_count = int(neutral.sum())
+        low_conf_count = int(low_conf.sum())
+        
+        return {
+            'bullish_count': bullish_count,
+            'bearish_count': bearish_count,
+            'neutral_count': neutral_count,
+            'low_confidence_count': low_conf_count,
+            'bullish_ratio': float(bullish_count / total_tweets) if total_tweets > 0 else 0.0,
+            'bearish_ratio': float(bearish_count / total_tweets) if total_tweets > 0 else 0.0,
+            'neutral_ratio': float(neutral_count / total_tweets) if total_tweets > 0 else 0.0,
+            'low_confidence_ratio': float(low_conf_count / total_tweets) if total_tweets > 0 else 0.0
+        }
+    
     def _calculate_risk_indicators(
         self,
         hashtag_analyses: Dict,
         signal_variance: float,
         confidence: float,
-        total_tweets: int
+        total_tweets: int,
+        df_tweets = None
     ) -> Dict:
         """Calculate risk indicators for the market signal"""
-        # Count low confidence tweets
-        low_confidence_count = 0
-        ignore_count = 0
-        
-        for analysis in hashtag_analyses.values():
-            dist = analysis.get('signal_distribution', {})
-            ignore_count += dist.get('IGNORE', {}).get('count', 0)
+        # If we have tweet-level data, use it (more accurate)
+        if df_tweets is not None and not df_tweets.empty:
+            low_confidence_count = int((df_tweets['confidence'] < 0.3).sum())
+            ignore_count = 0  # We don't use IGNORE label anymore at tweet level
+        else:
+            # Fallback to hashtag-based estimation (less accurate due to double counting)
+            low_confidence_count = 0
+            ignore_count = 0
             
-            # Estimate low confidence as those below threshold
-            valid_count = analysis.get('valid_tweet_count', 0)
-            total_count = analysis.get('tweet_count', 0)
-            low_confidence_count += (total_count - valid_count)
+            for analysis in hashtag_analyses.values():
+                dist = analysis.get('signal_distribution', {})
+                ignore_count += dist.get('IGNORE', {}).get('count', 0)
+                
+                # Estimate low confidence as those below threshold
+                valid_count = analysis.get('valid_tweet_count', 0)
+                total_count = analysis.get('tweet_count', 0)
+                low_confidence_count += (total_count - valid_count)
         
         return {
             'signal_volatility': float(signal_variance),
@@ -286,9 +342,11 @@ class MarketAggregator:
                 'bullish_count': 0,
                 'bearish_count': 0,
                 'neutral_count': 0,
+                'low_confidence_count': 0,
                 'bullish_ratio': 0.0,
                 'bearish_ratio': 0.0,
-                'neutral_ratio': 0.0
+                'neutral_ratio': 0.0,
+                'low_confidence_ratio': 0.0
             },
             'signal_distribution': {},
             'hashtag_ranking': [],

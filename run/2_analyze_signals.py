@@ -24,6 +24,7 @@ from src.analysis.features import analyze_tweets
 from utils.hashtag_analyzer import HashtagAnalyzer
 from utils.market_aggregator import MarketAggregator
 from utils.report_generator import ReportGenerator
+from config import DEFAULT_TARGET_HASHTAGS
 
 # Configure logging
 logging.basicConfig(
@@ -33,14 +34,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def load_data(input_file: Path, sample_size: int = None, filter_hashtags: list = None) -> pd.DataFrame:
+def load_data(input_file: Path, sample_size: int = None) -> pd.DataFrame:
     """
     Load tweet data from parquet or JSON file
     
     Args:
         input_file: Path to data file (parquet or JSON)
         sample_size: Optional - load only first N tweets for testing
-        filter_hashtags: Optional - list of hashtags to filter (e.g., ['nifty', 'sensex'])
         
     Returns:
         DataFrame with tweets
@@ -77,31 +77,6 @@ def load_data(input_file: Path, sample_size: int = None, filter_hashtags: list =
                 logger.info("Successfully loaded as JSON")
             except Exception as e:
                 raise ValueError(f"Could not load file as Parquet or JSON: {e}")
-    
-    # Filter by hashtags if requested
-    if filter_hashtags:
-        # Normalize filter hashtags (lowercase, no #)
-        filter_hashtags = [h.lower().strip('#') for h in filter_hashtags]
-        logger.info(f"Filtering tweets for hashtags: {filter_hashtags}")
-        
-        def has_target_hashtag(tweet_hashtags):
-            """Check if tweet has any of the target hashtags"""
-            # Handle both lists and numpy arrays
-            try:
-                # Check if iterable (but not string)
-                if isinstance(tweet_hashtags, str):
-                    return False
-                # Normalize tweet hashtags
-                normalized = [str(h).lower().strip('#') for h in tweet_hashtags]
-                # Check if any target hashtag is present
-                return any(h in filter_hashtags for h in normalized)
-            except (TypeError, AttributeError):
-                return False
-        
-        initial_count = len(df)
-        df = df[df['hashtags'].apply(has_target_hashtag)]
-        filtered_count = len(df)
-        logger.info(f"Filtered {initial_count} → {filtered_count} tweets ({filtered_count/initial_count*100:.1f}%)")
     
     # Sample if requested
     if sample_size and sample_size < len(df):
@@ -180,13 +155,14 @@ def analyze_by_hashtag(df: pd.DataFrame, sample_mode: bool = False) -> dict:
     return hashtag_analyses
 
 
-def aggregate_market_signal(hashtag_analyses: dict, total_tweets: int) -> dict:
+def aggregate_market_signal(hashtag_analyses: dict, total_tweets: int, df_tweets=None) -> dict:
     """
     Aggregate hashtag signals into overall market sentiment
     
     Args:
         hashtag_analyses: Per-hashtag analyses
         total_tweets: Total number of tweets
+        df_tweets: Optional DataFrame with tweet-level data for accurate stats
         
     Returns:
         Overall market signal dict
@@ -197,7 +173,8 @@ def aggregate_market_signal(hashtag_analyses: dict, total_tweets: int) -> dict:
     
     overall_market = aggregator.aggregate_market_signal(
         hashtag_analyses,
-        total_tweets
+        total_tweets,
+        df_tweets
     )
     
     logger.info(f"Overall market signal: {overall_market['signal_label']} "
@@ -377,8 +354,13 @@ def main():
     parser.add_argument(
         '--hashtags',
         nargs='+',
-        default=None,
-        help='Filter to specific hashtags (e.g., --hashtags nifty nifty50 sensex)'
+        default=DEFAULT_TARGET_HASHTAGS,
+        help=f'Target hashtags for detailed analysis (default: {" ".join(DEFAULT_TARGET_HASHTAGS)})'
+    )
+    parser.add_argument(
+        '--all-hashtags',
+        action='store_true',
+        help='Skip detailed hashtag summary (analyze all hashtags equally)'
     )
     
     args = parser.parse_args()
@@ -407,9 +389,16 @@ def main():
         # Step 1: Load data
         if args.sample:
             print(f"🧪 TEST MODE: Using sample of {args.sample} tweets\n")
-        if args.hashtags:
-            print(f"🎯 FILTER MODE: Analyzing only hashtags: {', '.join(['#' + h for h in args.hashtags])}\n")
-        df = load_data(input_file, sample_size=args.sample, filter_hashtags=args.hashtags)
+        
+        # Target hashtags for detailed analysis (but analyze ALL tweets for overall market)
+        target_hashtags = args.hashtags
+        
+        if target_hashtags and not args.all_hashtags:
+            print(f"🎯 TARGET MODE: Overall market uses ALL tweets, detailed analysis for: {', '.join(['#' + h for h in target_hashtags])}\n")
+        else:
+            print(f"📊 FULL MODE: Analyzing all hashtags in dataset\n")
+        
+        df = load_data(input_file, sample_size=args.sample)
         
         # Step 2: Run feature analysis (sentiment, engagement, TF-IDF, signals)
         analyzed_df = run_feature_analysis(df)
@@ -418,7 +407,7 @@ def main():
         hashtag_analyses = analyze_by_hashtag(analyzed_df, sample_mode=bool(args.sample))
         
         # Step 4: Aggregate to overall market signal
-        overall_market = aggregate_market_signal(hashtag_analyses, len(analyzed_df))
+        overall_market = aggregate_market_signal(hashtag_analyses, len(analyzed_df), analyzed_df)
         
         # Step 5: Save outputs and print summary
         save_outputs(

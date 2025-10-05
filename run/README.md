@@ -1,11 +1,11 @@
 # Market Signal Analysis - Run Scripts
 
-Organized execution scripts for the complete market signal analysis pipeline.
+Main execution pipeline for the market signal analysis project.
 
-## 📁 Directory Structure
+## 🎯 Quick Start (Default Target Hashtags)
 
-```
-run/
+The scripts now **automatically analyze your target hashtags** by default:
+- `nifty`, `nifty50`, `sensex`, `banknifty`, `intraday`
 ├── README.md                    # This file
 ├── run_all.py                   # Master orchestrator (runs all stages)
 ├── 1_collect_data.py            # Data collection wrapper
