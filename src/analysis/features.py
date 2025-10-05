@@ -810,11 +810,17 @@ def analyze_tweets(
             signal = calculate_trading_signal(analysis)
             analysis.update(signal)
         
-        # Add tweet metadata
-        analysis['tweet_id'] = tweet.get('tweet_id', i)
-        analysis['username'] = tweet.get('username', '')
-        analysis['content'] = content
-        analysis['timestamp'] = tweet.get('timestamp', '')
+        # Add tweet metadata - preserve ALL original fields from input
+        # This ensures hashtags, mentions, engagement metrics, etc. are not lost
+        for key, value in tweet.items():
+            if key not in analysis:  # Don't overwrite computed features
+                analysis[key] = value
+        
+        # Ensure critical fields exist even if not in original tweet
+        if 'tweet_id' not in analysis:
+            analysis['tweet_id'] = i
+        if 'content' not in analysis:
+            analysis['content'] = content
         
         results.append(analysis)
         

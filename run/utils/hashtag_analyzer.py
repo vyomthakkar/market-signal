@@ -84,8 +84,16 @@ class HashtagAnalyzer:
         
         # Normalize hashtags to lowercase lists
         def normalize_hashtags(tags):
-            if pd.isna(tags):
+            # Handle None/NaN - check for scalar None or use try/except for arrays
+            if tags is None:
                 return []
+            try:
+                if pd.isna(tags):
+                    return []
+            except (ValueError, TypeError):
+                # pd.isna() on arrays raises ValueError, so tags is an array/list
+                pass
+            
             if isinstance(tags, str):
                 # Handle empty string or "[]"
                 if not tags or tags == '[]':
@@ -97,7 +105,7 @@ class HashtagAnalyzer:
                 except Exception as e:
                     logger.debug(f"Failed to parse hashtag string: {repr(tags)[:50]}")
                     return []
-            if isinstance(tags, list):
+            if isinstance(tags, (list, np.ndarray)):
                 result = [str(tag).lower().strip('#').strip() for tag in tags if tag]
                 return result
             return []

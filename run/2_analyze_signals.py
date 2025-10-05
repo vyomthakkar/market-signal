@@ -33,12 +33,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def load_data(input_file: Path) -> pd.DataFrame:
+def load_data(input_file: Path, sample_size: int = None) -> pd.DataFrame:
     """
     Load tweet data from parquet or JSON file
     
     Args:
         input_file: Path to data file (parquet or JSON)
+        sample_size: Optional - load only first N tweets for testing
         
     Returns:
         DataFrame with tweets
@@ -75,6 +76,11 @@ def load_data(input_file: Path) -> pd.DataFrame:
                 logger.info("Successfully loaded as JSON")
             except Exception as e:
                 raise ValueError(f"Could not load file as Parquet or JSON: {e}")
+    
+    # Sample if requested
+    if sample_size and sample_size < len(df):
+        logger.info(f"Sampling {sample_size} tweets for testing...")
+        df = df.head(sample_size)
     
     logger.info(f"Loaded {len(df)} tweets")
     
@@ -121,20 +127,24 @@ def run_feature_analysis(df: pd.DataFrame) -> pd.DataFrame:
     return analyzed_df
 
 
-def analyze_by_hashtag(df: pd.DataFrame) -> dict:
+def analyze_by_hashtag(df: pd.DataFrame, sample_mode: bool = False) -> dict:
     """
     Group tweets by hashtag and calculate per-hashtag signals
     
     Args:
         df: DataFrame with analyzed tweets
+        sample_mode: If True, use lower thresholds for testing
         
     Returns:
         Dict of hashtag -> analysis
     """
     logger.info("Analyzing signals per hashtag...")
     
+    # Use lower thresholds in sample mode
+    min_tweets = 3 if sample_mode else 20
+    
     analyzer = HashtagAnalyzer(
-        min_tweets=20,  # Minimum tweets per hashtag
+        min_tweets=min_tweets,  # Minimum tweets per hashtag
         min_confidence=0.3  # Minimum confidence threshold
     )
     
@@ -238,6 +248,12 @@ def main():
         action='store_true',
         help='Enable verbose logging'
     )
+    parser.add_argument(
+        '--sample',
+        type=int,
+        default=None,
+        help='Test on first N tweets only (e.g., --sample 50)'
+    )
     
     args = parser.parse_args()
     
@@ -263,13 +279,15 @@ def main():
         print("="*80 + "\n")
         
         # Step 1: Load data
-        df = load_data(input_file)
+        if args.sample:
+            print(f"🧪 TEST MODE: Using sample of {args.sample} tweets\n")
+        df = load_data(input_file, sample_size=args.sample)
         
         # Step 2: Run feature analysis (sentiment, engagement, TF-IDF, signals)
         analyzed_df = run_feature_analysis(df)
         
         # Step 3: Analyze per hashtag
-        hashtag_analyses = analyze_by_hashtag(analyzed_df)
+        hashtag_analyses = analyze_by_hashtag(analyzed_df, sample_mode=bool(args.sample))
         
         # Step 4: Aggregate to overall market signal
         overall_market = aggregate_market_signal(hashtag_analyses, len(analyzed_df))
