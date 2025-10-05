@@ -33,13 +33,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def load_data(input_file: Path, sample_size: int = None) -> pd.DataFrame:
+def load_data(input_file: Path, sample_size: int = None, filter_hashtags: list = None) -> pd.DataFrame:
     """
     Load tweet data from parquet or JSON file
     
     Args:
         input_file: Path to data file (parquet or JSON)
         sample_size: Optional - load only first N tweets for testing
+        filter_hashtags: Optional - list of hashtags to filter (e.g., ['nifty', 'sensex'])
         
     Returns:
         DataFrame with tweets
@@ -76,6 +77,31 @@ def load_data(input_file: Path, sample_size: int = None) -> pd.DataFrame:
                 logger.info("Successfully loaded as JSON")
             except Exception as e:
                 raise ValueError(f"Could not load file as Parquet or JSON: {e}")
+    
+    # Filter by hashtags if requested
+    if filter_hashtags:
+        # Normalize filter hashtags (lowercase, no #)
+        filter_hashtags = [h.lower().strip('#') for h in filter_hashtags]
+        logger.info(f"Filtering tweets for hashtags: {filter_hashtags}")
+        
+        def has_target_hashtag(tweet_hashtags):
+            """Check if tweet has any of the target hashtags"""
+            # Handle both lists and numpy arrays
+            try:
+                # Check if iterable (but not string)
+                if isinstance(tweet_hashtags, str):
+                    return False
+                # Normalize tweet hashtags
+                normalized = [str(h).lower().strip('#') for h in tweet_hashtags]
+                # Check if any target hashtag is present
+                return any(h in filter_hashtags for h in normalized)
+            except (TypeError, AttributeError):
+                return False
+        
+        initial_count = len(df)
+        df = df[df['hashtags'].apply(has_target_hashtag)]
+        filtered_count = len(df)
+        logger.info(f"Filtered {initial_count} → {filtered_count} tweets ({filtered_count/initial_count*100:.1f}%)")
     
     # Sample if requested
     if sample_size and sample_size < len(df):
@@ -254,6 +280,12 @@ def main():
         default=None,
         help='Test on first N tweets only (e.g., --sample 50)'
     )
+    parser.add_argument(
+        '--hashtags',
+        nargs='+',
+        default=None,
+        help='Filter to specific hashtags (e.g., --hashtags nifty nifty50 sensex)'
+    )
     
     args = parser.parse_args()
     
@@ -281,7 +313,9 @@ def main():
         # Step 1: Load data
         if args.sample:
             print(f"🧪 TEST MODE: Using sample of {args.sample} tweets\n")
-        df = load_data(input_file, sample_size=args.sample)
+        if args.hashtags:
+            print(f"🎯 FILTER MODE: Analyzing only hashtags: {', '.join(['#' + h for h in args.hashtags])}\n")
+        df = load_data(input_file, sample_size=args.sample, filter_hashtags=args.hashtags)
         
         # Step 2: Run feature analysis (sentiment, engagement, TF-IDF, signals)
         analyzed_df = run_feature_analysis(df)
