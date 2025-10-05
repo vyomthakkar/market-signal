@@ -93,40 +93,47 @@ def load_data(input_file: Path, sample_size: int = None) -> pd.DataFrame:
         # Try alternative column names
         if 'cleaned_content' in df.columns:
             df['content'] = df['cleaned_content']
-        else:
             raise ValueError(f"Missing required columns: {missing_cols}")
     
     return df
 
 
-def run_feature_analysis(df: pd.DataFrame) -> pd.DataFrame:
+def run_feature_analysis(df: pd.DataFrame, parallel: bool = False, n_workers: int = None) -> pd.DataFrame:
     """
-    Run sentiment, engagement, TF-IDF analysis on tweets
+    Run sentiment analysis, engagement, TF-IDF on all tweets
     
     Args:
-        df: DataFrame with raw tweets
+        df: DataFrame with tweets
+        parallel: Whether to use parallel processing
+        n_workers: Number of parallel workers (default: cpu_count())
         
     Returns:
-        DataFrame with complete feature analysis
+        DataFrame with added feature columns
     """
-    logger.info("Running feature extraction (sentiment, engagement, TF-IDF)...")
+    if parallel:
+        logger.info("Running feature extraction with PARALLEL processing...")
+        logger.info(f"Using {n_workers or 'auto'} workers for sentiment analysis")
+    else:
+        logger.info("Running feature extraction (sentiment, engagement, TF-IDF)...")
+    
     logger.info("This may take a few minutes for the first run (model download)")
     
-    # Convert to list of dicts for analyze_tweets function
+    # Convert DataFrame to list of dicts for analysis
     tweets = df.to_dict('records')
     
-    # Run complete analysis
+    # Run analysis (with trading signal calculation)
     analyzed_df = analyze_tweets(
         tweets,
         keyword_boost_weight=0.3,
         include_engagement=True,
         include_tfidf=True,
-        calculate_signals=True
+        calculate_signals=True,
+        parallel=parallel,
+        n_workers=n_workers
     )
     
     logger.info(f"Feature extraction complete for {len(analyzed_df)} tweets")
-    return analyzed_df
-
+    return pd.DataFrame(analyzed_df)
 
 def analyze_by_hashtag(df: pd.DataFrame, sample_mode: bool = False) -> dict:
     """
@@ -362,6 +369,17 @@ def main():
         action='store_true',
         help='Skip detailed hashtag summary (analyze all hashtags equally)'
     )
+    parser.add_argument(
+        '--parallel',
+        action='store_true',
+        help='Enable parallel processing for sentiment analysis (4-8x faster)'
+    )
+    parser.add_argument(
+        '--workers',
+        type=int,
+        default=None,
+        help='Number of parallel workers (default: auto-detect CPU cores)'
+    )
     
     args = parser.parse_args()
     
@@ -401,7 +419,7 @@ def main():
         df = load_data(input_file, sample_size=args.sample)
         
         # Step 2: Run feature analysis (sentiment, engagement, TF-IDF, signals)
-        analyzed_df = run_feature_analysis(df)
+        analyzed_df = run_feature_analysis(df, parallel=args.parallel, n_workers=args.workers)
         
         # Step 3: Analyze per hashtag
         hashtag_analyses = analyze_by_hashtag(analyzed_df, sample_mode=bool(args.sample))

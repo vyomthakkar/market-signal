@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2025-10-05T19:07:42.747707",
+    "generated_at": "2025-10-05T20:00:49.917799",
     "version": "1.0.0",
     "input_file": "/Users/vyomthakkar/Downloads/market-signal/data_store/tweets_incremental.parquet",
     "total_tweets_analyzed": 2030

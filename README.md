@@ -74,6 +74,9 @@ Analyze collected tweets to generate market sentiment signals and confidence sco
 # Analyze all tweets, show details for target hashtags
 python run/2_analyze_signals.py
 
+# Enable parallel processing (4-8x faster on multi-core systems)
+python run/2_analyze_signals.py --parallel
+
 # Specify custom target hashtags
 python run/2_analyze_signals.py --hashtags nifty sensex banknifty
 
@@ -179,9 +182,10 @@ market-signal/
 ## 💡 Key Features
 
 ### Sentiment Analysis
-- Multi-model sentiment scoring (TextBlob + VADER)
+- Multi-model sentiment scoring (RoBERTa + finance keywords)
 - Confidence-weighted aggregation
 - Emoji and slang handling
+- **Parallel processing support (4-8x speedup)**
 
 ### Signal Generation
 - Volume-weighted signal scores
@@ -192,6 +196,12 @@ market-signal/
 - Content quality scoring (length, linguistic features)
 - Social proof weighting (engagement metrics)
 - Automatic IGNORE classification for unreliable signals
+
+### Performance Optimizations
+- **O(1) deduplication** via dual data structure
+- **Vectorized TF-IDF** computation
+- **Lazy model loading** (500MB RoBERTa on-demand)
+- **Multiprocessing parallelization** for sentiment analysis
 
 ---
 

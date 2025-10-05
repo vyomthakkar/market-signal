@@ -11,6 +11,8 @@ import logging
 from typing import Dict, List, Optional, Tuple, Set
 import numpy as np
 import pandas as pd
+from multiprocessing import Pool, cpu_count
+from functools import partial
 
 # Lazy imports for ML models
 try:
@@ -755,6 +757,80 @@ def aggregate_signals(tweet_signals: List[Dict], min_confidence: float = 0.3) ->
     }
 
 
+# ==================== Parallel Processing Worker ====================
+
+# Global worker state (initialized once per worker process)
+_worker_sentiment_analyzer = None
+_worker_engagement_analyzer = None
+
+def _init_worker(keyword_boost_weight: float, include_engagement: bool):
+    """
+    Initialize worker process with shared analyzers
+    Called once per worker at pool creation
+    """
+    global _worker_sentiment_analyzer, _worker_engagement_analyzer
+    _worker_sentiment_analyzer = SentimentAnalyzer(keyword_boost_weight=keyword_boost_weight)
+    _worker_engagement_analyzer = EngagementAnalyzer() if include_engagement else None
+
+def _analyze_single_tweet_worker(
+    tweet_data: Tuple[int, Dict, str],
+    tfidf_analyzer: Optional[TFIDFAnalyzer],
+    calculate_signals: bool
+) -> Dict:
+    """
+    Worker function for parallel tweet analysis
+    
+    Must be a top-level function to be picklable for multiprocessing.
+    Uses pre-initialized analyzers from worker state.
+    
+    Args:
+        tweet_data: Tuple of (index, tweet_dict, content)
+        tfidf_analyzer: Fitted TF-IDF analyzer (or None)
+        calculate_signals: Whether to calculate trading signals
+        
+    Returns:
+        Dictionary with all analysis results
+    """
+    global _worker_sentiment_analyzer, _worker_engagement_analyzer
+    
+    i, tweet, content = tweet_data
+    
+    # Use pre-initialized analyzers from worker state
+    sentiment_analyzer = _worker_sentiment_analyzer
+    engagement_analyzer = _worker_engagement_analyzer
+    
+    # Sentiment analysis
+    analysis = sentiment_analyzer.analyze(content)
+    
+    # Engagement analysis (if analyzer exists)
+    if engagement_analyzer is not None:
+        engagement = engagement_analyzer.analyze(tweet)
+        analysis.update(engagement)
+    
+    # TF-IDF analysis (using pre-fitted analyzer)
+    if tfidf_analyzer and tfidf_analyzer._is_fitted:
+        tfidf_features = tfidf_analyzer.transform(content)
+        analysis.update(tfidf_features)
+    
+    # Calculate trading signal with confidence
+    if calculate_signals:
+        signal = calculate_trading_signal(analysis)
+        analysis.update(signal)
+    
+    # Add tweet metadata - preserve ALL original fields
+    for key, value in tweet.items():
+        if key not in analysis:
+            analysis[key] = value
+    
+    # Ensure critical fields exist
+    if 'tweet_id' not in analysis:
+        analysis['tweet_id'] = i
+    if 'content' not in analysis:
+        analysis['content'] = content
+    
+    return analysis
+
+
 # ==================== Batch Processing ====================
 
 def analyze_tweets(
@@ -762,7 +838,9 @@ def analyze_tweets(
     keyword_boost_weight: float = 0.3,
     include_engagement: bool = True,
     include_tfidf: bool = True,
-    calculate_signals: bool = True
+    calculate_signals: bool = True,
+    parallel: bool = False,
+    n_workers: Optional[int] = None
 ) -> pd.DataFrame:
     """
     Analyze sentiment, engagement, TF-IDF, and generate trading signals for multiple tweets
@@ -773,59 +851,99 @@ def analyze_tweets(
         include_engagement: Whether to include engagement metrics (default: True)
         include_tfidf: Whether to include TF-IDF features (default: True)
         calculate_signals: Whether to calculate trading signals with confidence (default: True)
+        parallel: Whether to use parallel processing (default: False)
+        n_workers: Number of parallel workers (default: cpu_count())
         
     Returns:
         DataFrame with complete analysis including trading signals and confidence scores
     """
-    sentiment_analyzer = SentimentAnalyzer(keyword_boost_weight=keyword_boost_weight)
-    engagement_analyzer = EngagementAnalyzer() if include_engagement else None
-    tfidf_analyzer = TFIDFAnalyzer() if include_tfidf else None
-    
     # Extract content for TF-IDF fitting
     contents = [tweet.get('cleaned_content', tweet.get('content', '')) for tweet in tweets]
     
-    # Fit TF-IDF on entire corpus first
+    # Fit TF-IDF on entire corpus first (must be done before parallel processing)
+    tfidf_analyzer = TFIDFAnalyzer() if include_tfidf else None
     if include_tfidf and tfidf_analyzer:
         tfidf_analyzer.fit(contents)
     
-    results = []
-    for i, tweet in enumerate(tweets):
-        content = contents[i]
+    # Parallel processing mode
+    if parallel and len(tweets) > 10:
+        n_workers = n_workers or cpu_count()
+        logger.info(f"Using parallel processing with {n_workers} workers")
+        logger.info(f"Initializing models in each worker (one-time overhead)...")
         
-        # Sentiment analysis
-        analysis = sentiment_analyzer.analyze(content)
+        # Prepare data for workers
+        tweet_data = [(i, tweet, contents[i]) for i, tweet in enumerate(tweets)]
         
-        # Engagement analysis
-        if include_engagement and engagement_analyzer:
-            engagement = engagement_analyzer.analyze(tweet)
-            analysis.update(engagement)
+        # Create partial function with fixed arguments
+        worker_func = partial(
+            _analyze_single_tweet_worker,
+            tfidf_analyzer=tfidf_analyzer,
+            calculate_signals=calculate_signals
+        )
         
-        # TF-IDF analysis
-        if include_tfidf and tfidf_analyzer:
-            tfidf_features = tfidf_analyzer.transform(content)
-            analysis.update(tfidf_features)
+        # Create initializer function with fixed arguments
+        init_func = partial(
+            _init_worker,
+            keyword_boost_weight=keyword_boost_weight,
+            include_engagement=include_engagement
+        )
         
-        # Calculate trading signal with confidence
-        if calculate_signals:
-            signal = calculate_trading_signal(analysis)
-            analysis.update(signal)
+        # Process in parallel with initializer and progress tracking
+        with Pool(processes=n_workers, initializer=init_func) as pool:
+            # Use imap for progress tracking
+            results = []
+            for i, result in enumerate(pool.imap(worker_func, tweet_data), 1):
+                results.append(result)
+                if i % 200 == 0 or i == len(tweets):
+                    logger.info(f"Progress: {i}/{len(tweets)} tweets processed ({i/len(tweets)*100:.1f}%)")
         
-        # Add tweet metadata - preserve ALL original fields from input
-        # This ensures hashtags, mentions, engagement metrics, etc. are not lost
-        for key, value in tweet.items():
-            if key not in analysis:  # Don't overwrite computed features
-                analysis[key] = value
+        logger.info(f"✓ Parallel processing completed for {len(tweets)} tweets")
+    
+    # Sequential processing mode (default)
+    else:
+        if parallel:
+            logger.info("Sequential processing (dataset too small for parallelization)")
         
-        # Ensure critical fields exist even if not in original tweet
-        if 'tweet_id' not in analysis:
-            analysis['tweet_id'] = i
-        if 'content' not in analysis:
-            analysis['content'] = content
+        sentiment_analyzer = SentimentAnalyzer(keyword_boost_weight=keyword_boost_weight)
+        engagement_analyzer = EngagementAnalyzer() if include_engagement else None
         
-        results.append(analysis)
-        
-        if (i + 1) % 10 == 0:
-            logger.info(f"Processed {i + 1}/{len(tweets)} tweets")
+        results = []
+        for i, tweet in enumerate(tweets):
+            content = contents[i]
+            
+            # Sentiment analysis
+            analysis = sentiment_analyzer.analyze(content)
+            
+            # Engagement analysis
+            if include_engagement and engagement_analyzer:
+                engagement = engagement_analyzer.analyze(tweet)
+                analysis.update(engagement)
+            
+            # TF-IDF analysis
+            if include_tfidf and tfidf_analyzer:
+                tfidf_features = tfidf_analyzer.transform(content)
+                analysis.update(tfidf_features)
+            
+            # Calculate trading signal with confidence
+            if calculate_signals:
+                signal = calculate_trading_signal(analysis)
+                analysis.update(signal)
+            
+            # Add tweet metadata - preserve ALL original fields from input
+            for key, value in tweet.items():
+                if key not in analysis:
+                    analysis[key] = value
+            
+            # Ensure critical fields exist
+            if 'tweet_id' not in analysis:
+                analysis['tweet_id'] = i
+            if 'content' not in analysis:
+                analysis['content'] = content
+            
+            results.append(analysis)
+            
+            if (i + 1) % 100 == 0:
+                logger.info(f"Processed {i + 1}/{len(tweets)} tweets")
     
     df = pd.DataFrame(results)
     logger.info(f"✓ Analyzed {len(df)} tweets")
