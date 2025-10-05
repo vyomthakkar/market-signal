@@ -63,9 +63,9 @@ def test_batch():
 
 
 def display_results_summary(df):
-    """Display all tweets with sentiment in a clean, digestible format"""
+    """Display all tweets with sentiment and engagement in a clean, digestible format"""
     print("\n" + "="*100)
-    print("📋 SENTIMENT ANALYSIS RESULTS - ALL TWEETS")
+    print("📋 SENTIMENT + ENGAGEMENT ANALYSIS - ALL TWEETS")
     print("="*100)
     
     for idx, row in df.iterrows():
@@ -85,7 +85,7 @@ def display_results_summary(df):
         filled = int(((score + 1) / 2) * bar_length)  # Map -1 to +1 → 0 to 20
         bar = '█' * filled + '░' * (bar_length - filled)
         
-        print(f"\n{emoji} Tweet #{idx+1} | Score: {score:+.2f} | {label}")
+        print(f"\n{emoji} Tweet #{idx+1} | Sentiment: {score:+.2f} ({label}) | Virality: {row['virality_score']:.2f}")
         print(f"   [{bar}] -1 ←→ +1")
         
         # Tweet content (truncated)
@@ -93,6 +93,10 @@ def display_results_summary(df):
         if len(content) > 90:
             content = content[:87] + "..."
         print(f"   💬 {content}")
+        
+        # Engagement metrics
+        eng = row['total_engagement']
+        print(f"   📊 Engagement: {int(eng)} total (👍 {int(row['likes'])} | 🔁 {int(row['retweets'])} | 💬 {int(row['replies'])} | 👁 {int(row['views'])})")
         
         # Show keywords if any
         keywords_info = []

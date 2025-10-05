@@ -221,31 +221,156 @@ class SentimentAnalyzer:
         }
 
 
+# ==================== Engagement Metrics ====================
+
+class EngagementAnalyzer:
+    """
+    Analyzes tweet engagement metrics and calculates virality score
+    """
+    
+    def __init__(
+        self,
+        engagement_weight: float = 0.3,
+        retweet_weight: float = 0.5,
+        reply_weight: float = 0.3,
+        like_weight: float = 0.2
+    ):
+        """
+        Initialize engagement analyzer
+        
+        Args:
+            engagement_weight: Weight for overall engagement rate in virality score
+            retweet_weight: Weight for retweets (most viral)
+            reply_weight: Weight for replies (discussion indicator)
+            like_weight: Weight for likes (basic engagement)
+        """
+        self.engagement_weight = engagement_weight
+        self.retweet_weight = retweet_weight
+        self.reply_weight = reply_weight
+        self.like_weight = like_weight
+    
+    def analyze(self, tweet: Dict) -> Dict[str, float]:
+        """
+        Analyze engagement metrics for a tweet
+        
+        Args:
+            tweet: Tweet dictionary with engagement fields
+            
+        Returns:
+            dict with engagement metrics and virality score
+        """
+        likes = tweet.get('likes', 0)
+        retweets = tweet.get('retweets', 0)
+        replies = tweet.get('replies', 0)
+        views = tweet.get('views', 0)
+        
+        # Basic metrics
+        total_engagement = likes + retweets + replies
+        
+        # Engagement rate (per 1000 views)
+        engagement_rate = 0.0
+        if views > 0:
+            engagement_rate = (total_engagement / views) * 1000
+        
+        # Virality ratio (retweets are most viral)
+        virality_ratio = 0.0
+        if likes > 0:
+            virality_ratio = retweets / likes
+        
+        # Reply ratio (indicates discussion/controversy)
+        reply_ratio = 0.0
+        if total_engagement > 0:
+            reply_ratio = replies / total_engagement
+        
+        # Like ratio
+        like_ratio = 0.0
+        if views > 0:
+            like_ratio = likes / views
+        
+        # ========== Combined Virality Score ==========
+        # Normalize each component to [0, 1] range, then weighted average
+        
+        # 1. Normalize engagement rate (cap at 50 per 1000 views = high engagement)
+        norm_engagement = min(engagement_rate / 50.0, 1.0)
+        
+        # 2. Normalize virality ratio (cap at 0.5 = very viral)
+        norm_virality = min(virality_ratio / 0.5, 1.0)
+        
+        # 3. Reply ratio is already 0-1
+        norm_reply = reply_ratio
+        
+        # 4. Normalize like ratio (cap at 0.05 = 5% like rate is excellent)
+        norm_like = min(like_ratio / 0.05, 1.0)
+        
+        # Combined virality score (weighted average, scaled to 0-1)
+        virality_score = (
+            norm_engagement * self.engagement_weight +
+            norm_virality * self.retweet_weight +
+            norm_reply * self.reply_weight +
+            norm_like * self.like_weight
+        )
+        
+        # Normalize to 0-1 range
+        total_weight = self.engagement_weight + self.retweet_weight + self.reply_weight + self.like_weight
+        virality_score = virality_score / total_weight
+        
+        return {
+            # Raw metrics
+            'likes': likes,
+            'retweets': retweets,
+            'replies': replies,
+            'views': views,
+            'total_engagement': total_engagement,
+            
+            # Calculated metrics
+            'engagement_rate': float(engagement_rate),
+            'virality_ratio': float(virality_ratio),
+            'reply_ratio': float(reply_ratio),
+            'like_ratio': float(like_ratio),
+            
+            # Combined score
+            'virality_score': float(virality_score),
+        }
+
+
 # ==================== Batch Processing ====================
 
-def analyze_tweets(tweets: List[Dict], keyword_boost_weight: float = 0.3) -> pd.DataFrame:
+def analyze_tweets(
+    tweets: List[Dict],
+    keyword_boost_weight: float = 0.3,
+    include_engagement: bool = True
+) -> pd.DataFrame:
     """
-    Analyze sentiment for multiple tweets
+    Analyze sentiment and engagement for multiple tweets
     
     Args:
         tweets: List of tweet dictionaries (must have 'content' or 'cleaned_content')
         keyword_boost_weight: Weight for keyword boost (default: 0.3)
+        include_engagement: Whether to include engagement metrics (default: True)
         
     Returns:
-        DataFrame with sentiment analysis results
+        DataFrame with sentiment and engagement analysis results
     """
-    analyzer = SentimentAnalyzer(keyword_boost_weight=keyword_boost_weight)
+    sentiment_analyzer = SentimentAnalyzer(keyword_boost_weight=keyword_boost_weight)
+    engagement_analyzer = EngagementAnalyzer() if include_engagement else None
     
     results = []
     for i, tweet in enumerate(tweets):
         content = tweet.get('cleaned_content', tweet.get('content', ''))
         
-        analysis = analyzer.analyze(content)
+        # Sentiment analysis
+        analysis = sentiment_analyzer.analyze(content)
+        
+        # Engagement analysis
+        if include_engagement:
+            engagement = engagement_analyzer.analyze(tweet)
+            analysis.update(engagement)
         
         # Add tweet metadata
         analysis['tweet_id'] = tweet.get('tweet_id', i)
         analysis['username'] = tweet.get('username', '')
         analysis['content'] = content
+        analysis['timestamp'] = tweet.get('timestamp', '')
         
         results.append(analysis)
         
