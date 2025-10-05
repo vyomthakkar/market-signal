@@ -206,12 +206,101 @@ def aggregate_market_signal(hashtag_analyses: dict, total_tweets: int) -> dict:
     return overall_market
 
 
+def print_target_hashtags_summary(hashtag_analyses: dict, target_hashtags: list):
+    """
+    Print detailed summary for target hashtags
+    
+    Args:
+        hashtag_analyses: Per-hashtag analyses
+        target_hashtags: List of target hashtag names
+    """
+    print("\n" + "="*80)
+    print("🎯 TARGET HASHTAGS ANALYSIS")
+    print("="*80)
+    print(f"\nTarget hashtags: {', '.join(['#' + h for h in target_hashtags])}\n")
+    
+    # Filter to target hashtags only
+    target_data = {h: hashtag_analyses[h] for h in target_hashtags if h in hashtag_analyses}
+    
+    if not target_data:
+        print("⚠️  No data found for target hashtags in analysis results.")
+        return
+    
+    print(f"Found {len(target_data)}/{len(target_hashtags)} target hashtags in data\n")
+    
+    # Sort by signal strength
+    sorted_hashtags = sorted(
+        target_data.items(),
+        key=lambda x: abs(x[1].get('signal_score', 0)),
+        reverse=True
+    )
+    
+    # Summary table
+    print("="*80)
+    print("QUICK SUMMARY")
+    print("="*80)
+    print(f"{'Hashtag':<15} {'Signal':<12} {'Score':>8} {'Confidence':>12} {'Tweets':>8}")
+    print("-"*80)
+    
+    for hashtag, data in sorted_hashtags:
+        signal = data.get('signal_label', 'N/A')
+        score = data.get('signal_score', 0)
+        conf = data.get('confidence', 0)
+        tweets = data.get('tweet_count', 0)
+        
+        # Add emoji
+        if 'BUY' in signal:
+            emoji = '📈'
+        elif 'SELL' in signal:
+            emoji = '📉'
+        else:
+            emoji = '⏸️'
+        
+        print(f"#{hashtag:<14} {signal:<12} {score:+8.3f} {conf*100:>11.1f}% {tweets:>8} {emoji}")
+    
+    # Detailed view for each hashtag
+    for hashtag, data in sorted_hashtags:
+        print(f"\n{'='*80}")
+        print(f"#{hashtag.upper()}")
+        print(f"{'='*80}")
+        
+        print(f"\n📈 SIGNAL: {data.get('signal_label', 'N/A')} ({data.get('signal_score', 0):+.3f})")
+        print(f"   Confidence: {data.get('confidence', 0)*100:.1f}%")
+        print(f"   Consensus: {data.get('consensus', 'N/A')}")
+        
+        print(f"\n📊 TWEETS: {data.get('tweet_count', 0)} total, {data.get('valid_tweet_count', 0)} high-confidence")
+        
+        sent_dist = data.get('sentiment_distribution', {})
+        total_sent = sent_dist.get('bullish_count', 0) + sent_dist.get('bearish_count', 0) + sent_dist.get('neutral_count', 0)
+        if total_sent > 0:
+            print(f"\n💭 SENTIMENT:")
+            print(f"   🟢 Bullish: {sent_dist.get('bullish_count', 0)} ({sent_dist.get('bullish_ratio', 0)*100:.1f}%)")
+            print(f"   🔴 Bearish: {sent_dist.get('bearish_count', 0)} ({sent_dist.get('bearish_ratio', 0)*100:.1f}%)")
+            print(f"   ⚪ Neutral: {sent_dist.get('neutral_count', 0)} ({sent_dist.get('neutral_ratio', 0)*100:.1f}%)")
+        
+        engagement = data.get('engagement_metrics', {})
+        if engagement and engagement.get('total_likes', 0) > 0:
+            print(f"\n🔥 ENGAGEMENT:")
+            print(f"   👍 Likes: {engagement.get('total_likes', 0):,}")
+            print(f"   🔁 Retweets: {engagement.get('total_retweets', 0):,}")
+            print(f"   💬 Replies: {engagement.get('total_replies', 0):,}")
+        
+        trending = data.get('trending_terms', [])
+        if trending:
+            print(f"\n🔥 TOP TRENDING TERMS:")
+            for i, term_data in enumerate(trending[:5], 1):
+                print(f"   {i}. {term_data.get('term', 'N/A')}")
+    
+    print("\n" + "="*80)
+
+
 def save_outputs(
     analyzed_df: pd.DataFrame,
     overall_market: dict,
     hashtag_analyses: dict,
     output_dir: Path,
-    input_file: Path
+    input_file: Path,
+    target_hashtags: list = None
 ):
     """
     Save all outputs (parquet, JSON, console summary)
@@ -222,6 +311,7 @@ def save_outputs(
         hashtag_analyses: Per-hashtag analyses
         output_dir: Output directory
         input_file: Input file path (for metadata)
+        target_hashtags: Optional list of target hashtags to display detailed summary
     """
     logger.info(f"Saving outputs to {output_dir}")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -250,6 +340,10 @@ def save_outputs(
     
     # 3. Print console summary
     report_gen.print_console_summary(report)
+    
+    # 4. Print target hashtags detail if specified
+    if target_hashtags:
+        print_target_hashtags_summary(hashtag_analyses, target_hashtags)
 
 
 def main():
@@ -332,7 +426,8 @@ def main():
             overall_market,
             hashtag_analyses,
             output_dir,
-            input_file
+            input_file,
+            target_hashtags=args.hashtags
         )
         
         print("\n" + "="*80)
