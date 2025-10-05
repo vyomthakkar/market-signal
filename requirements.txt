@@ -11,3 +11,8 @@ pandas>=2.2.0  # DataFrame operations
 langdetect>=1.0.9  # Language detection for multilingual content
 unicodedata2>=15.1.0  # Enhanced Unicode normalization
 
+# Analysis & ML (Phase 3 & 4)
+transformers>=4.30.0  # Hugging Face transformers for sentiment analysis
+torch>=2.0.0  # PyTorch backend for transformers
+scipy>=1.10.0  # Scientific computing
+numpy>=1.24.0  # Numerical operations
