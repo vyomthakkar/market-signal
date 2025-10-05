@@ -1,16 +1,16 @@
 {
   "hashtag_stats": {
     "nifty50": {
-      "collected": 9,
-      "unique": 9,
+      "collected": 6,
+      "unique": 6,
       "target": 2,
-      "percentage": 450.0
+      "percentage": 300.0
     },
     "sensex": {
-      "collected": 7,
+      "collected": 8,
       "unique": 5,
       "target": 2,
-      "percentage": 350.0
+      "percentage": 400.0
     },
     "intraday": {
       "collected": 7,
@@ -19,17 +19,17 @@
       "percentage": 350.0
     },
     "banknifty": {
-      "collected": 7,
-      "unique": 3,
+      "collected": 8,
+      "unique": 6,
       "target": 2,
-      "percentage": 350.0
+      "percentage": 400.0
     }
   },
   "global_stats": {
     "unique_tweets": 24,
-    "duplicates_skipped": 6,
-    "total_processed": 30,
-    "deduplication_rate": 20.0
+    "duplicates_skipped": 5,
+    "total_processed": 29,
+    "deduplication_rate": 17.24137931034483
   },
   "rate_limiter_stats": {
     "current_rate": 10.0,

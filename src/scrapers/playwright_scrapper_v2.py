@@ -198,13 +198,69 @@ class TwitterScraperV2:
                 await self.page.screenshot(path=str(screenshot_path))
                 logger.debug(f"Screenshot saved: {screenshot_path}")
             
-            # Click Next button
+            # Click Next button - use multiple strategies
             logger.info("Clicking Next button...")
-            next_button = await self.page.wait_for_selector('text=Next', timeout=10000)
-            await next_button.click()
-            await asyncio.sleep(random.uniform(4, 5))
             
-            # Screenshot after click
+            # Store current URL to detect transition
+            initial_url = self.page.url
+            
+            # Strategy 1: Try clicking using role selector (most reliable)
+            try:
+                next_button = await self.page.wait_for_selector(
+                    'button[role="button"]:has-text("Next")',
+                    timeout=10000,
+                    state='visible'
+                )
+                # Wait for button to be stable (animations to finish)
+                await asyncio.sleep(0.5)
+                await next_button.click(force=True)  # Force click to bypass overlays
+                logger.info("✓ Clicked Next button (role selector)")
+            except Exception as e:
+                logger.warning(f"Strategy 1 failed: {e}")
+                # Strategy 2: Try direct page.click with text
+                try:
+                    await self.page.click('text=Next', force=True)
+                    logger.info("✓ Clicked Next button (text selector)")
+                except Exception as e2:
+                    logger.warning(f"Strategy 2 failed: {e2}")
+                    # Strategy 3: Press Enter key as fallback
+                    try:
+                        await self.page.press('input[autocomplete="username"]', 'Enter')
+                        logger.info("✓ Pressed Enter on username field")
+                    except Exception as e3:
+                        logger.error(f"All click strategies failed: {e3}")
+                        raise LoginException("Could not click Next button with any strategy")
+            
+            # Wait for page transition with multiple indicators
+            logger.info("Waiting for page transition...")
+            transition_success = False
+            
+            for attempt in range(3):
+                await asyncio.sleep(3)
+                current_url = self.page.url
+                
+                # Check if URL changed or if we can see next step elements
+                try:
+                    # Look for password field or verification field
+                    await self.page.wait_for_selector(
+                        'input[type="password"], input[name="password"], input[data-testid="ocfEnterTextTextInput"]',
+                        timeout=5000,
+                        state='visible'
+                    )
+                    transition_success = True
+                    logger.info("✓ Page transitioned successfully")
+                    break
+                except:
+                    if current_url != initial_url:
+                        transition_success = True
+                        logger.info("✓ URL changed, transition detected")
+                        break
+                    logger.warning(f"Transition attempt {attempt + 1}/3 - still waiting...")
+            
+            if not transition_success:
+                logger.warning("Page may not have transitioned, but continuing...")
+            
+            # Screenshot after transition
             if self.config.debug_screenshots:
                 screenshot_path = self.config.debug_dir / 'after_next.png'
                 await self.page.screenshot(path=str(screenshot_path))
@@ -243,41 +299,78 @@ class TwitterScraperV2:
             logger.info("Waiting for password field...")
             password_selector = None
             
-            # Wait a bit longer for page to fully load
-            await asyncio.sleep(3)
+            # Wait for page to fully load
+            await asyncio.sleep(2)
             
             # Try multiple selectors with better error handling
             selectors = [
                 'input[name="password"]',
                 'input[type="password"]', 
                 'input[autocomplete="current-password"]',
-                '[data-testid="ocfEnterTextTextInput"]'  # Sometimes Twitter uses this
             ]
             
-            for selector in selectors:
-                try:
-                    logger.debug(f"Trying selector: {selector}")
-                    await self.page.wait_for_selector(selector, timeout=5000)
-                    password_selector = selector
-                    logger.info(f"✓ Password field found with: {selector}")
+            # Try to find password field with extended timeout
+            for attempt in range(3):
+                logger.info(f"Password field search attempt {attempt + 1}/3...")
+                
+                for selector in selectors:
+                    try:
+                        logger.debug(f"Trying selector: {selector}")
+                        await self.page.wait_for_selector(selector, timeout=7000, state='visible')
+                        password_selector = selector
+                        logger.info(f"✓ Password field found with: {selector}")
+                        break
+                    except Exception as e:
+                        logger.debug(f"Selector {selector} not found: {e}")
+                        continue
+                
+                if password_selector:
                     break
-                except Exception as e:
-                    logger.debug(f"Selector {selector} not found: {e}")
-                    continue
+                
+                # If not found, check what page we're on
+                current_url = self.page.url
+                logger.warning(f"Password field not found. Current URL: {current_url}")
+                
+                # Check if still on login page (might need to retry clicking Next)
+                if "/login" in current_url and attempt < 2:
+                    logger.warning("Still on login page, trying to click Next again...")
+                    try:
+                        await self.page.click('text=Next')
+                        await asyncio.sleep(4)
+                    except:
+                        logger.warning("Could not click Next again")
+                        pass
+                
+                # Take screenshot for this attempt
+                if self.config.debug_screenshots:
+                    screenshot_path = self.config.debug_dir / f'password_field_attempt_{attempt + 1}.png'
+                    await self.page.screenshot(path=str(screenshot_path))
+                    logger.info(f"Screenshot saved: {screenshot_path}")
             
             if not password_selector:
-                # Take screenshot for debugging
+                # Final screenshot for debugging
                 if self.config.debug_screenshots:
                     screenshot_path = self.config.debug_dir / 'password_field_error.png'
                     await self.page.screenshot(path=str(screenshot_path))
-                    logger.error(f"Screenshot saved: {screenshot_path}")
+                    logger.error(f"Final screenshot saved: {screenshot_path}")
                 
-                # Get page content for debugging
-                page_text = await self.page.content()
+                # Get visible text for debugging
+                try:
+                    visible_text = await self.page.evaluate("""
+                        () => document.body.innerText.substring(0, 500)
+                    """)
+                    logger.error(f"Visible page text: {visible_text[:200]}...")
+                except:
+                    pass
+                
                 logger.error(f"Current URL: {self.page.url}")
-                logger.error("Page might be showing verification or different UI")
+                logger.error("Possible causes:")
+                logger.error("  1. Twitter showing verification screen (phone/email)")
+                logger.error("  2. Suspicious activity detected")
+                logger.error("  3. Account locked or requires additional verification")
+                logger.error("  4. Next button click failed to register")
                 
-                raise LoginException("Password field not found after trying all selectors")
+                raise LoginException("Password field not found after multiple attempts. Check debug screenshots.")
             
             await self.page.fill(password_selector, password)
             await asyncio.sleep(1)

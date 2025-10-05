@@ -1,5 +1,5 @@
 {
-  "created_at": "2025-10-04T20:45:46.589674",
+  "created_at": "2025-10-05T05:59:00.195443",
   "tweet_count": 24,
   "columns": [
     "tweet_id",
@@ -34,11 +34,11 @@
     "processed_at": "object"
   },
   "compression": "snappy",
-  "file_size_bytes": 19264,
+  "file_size_bytes": 20640,
   "parquet_file": "tweets.parquet",
   "language_distribution": {
     "en": 23,
-    "sw": 1
+    "no": 1
   },
-  "unique_users": 15
+  "unique_users": 20
 }
