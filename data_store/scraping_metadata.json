@@ -19,10 +19,10 @@
       "scraped_at": "2025-10-05T15:22:52.079287"
     },
     "intraday": {
-      "scraped_count": 500,
-      "unique_added": 495,
-      "target_count": 500,
-      "scraped_at": "2025-10-05T15:41:13.701268"
+      "scraped_count": 6,
+      "unique_added": 0,
+      "target_count": 5,
+      "scraped_at": "2025-10-05T16:09:02.905201"
     },
     "nifty": {
       "scraped_count": 502,
@@ -35,11 +35,17 @@
       "unique_added": 184,
       "target_count": 300,
       "scraped_at": "2025-10-05T16:05:41.071962"
+    },
+    "niftynext50": {
+      "scraped_count": 33,
+      "unique_added": 31,
+      "target_count": 300,
+      "scraped_at": "2025-10-05T16:14:23.653782"
     }
   },
-  "total_tweets": 1999,
+  "total_tweets": 2030,
   "created_at": "2025-10-05T14:47:06.492774",
-  "last_updated": "2025-10-05T16:05:41.071975",
+  "last_updated": "2025-10-05T16:14:23.653815",
   "scraping_sessions": [
     {
       "hashtag": "nifty50",
@@ -76,6 +82,18 @@
       "timestamp": "2025-10-05T16:05:41.071976",
       "tweets_added": 184,
       "total_after": 1999
+    },
+    {
+      "hashtag": "intraday",
+      "timestamp": "2025-10-05T16:09:02.905210",
+      "tweets_added": 0,
+      "total_after": 1999
+    },
+    {
+      "hashtag": "niftynext50",
+      "timestamp": "2025-10-05T16:14:23.653820",
+      "tweets_added": 31,
+      "total_after": 2030
     }
   ]
 }

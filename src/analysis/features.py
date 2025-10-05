@@ -2,7 +2,7 @@
 Feature Engineering Module
 
 Sentiment analysis for Indian stock market tweets using:
-1. Twitter-RoBERTa base sentiment (social media understanding)
+1. Twitter-RoBERTa base sentiment (social media sentiment understanding)
 2. Finance keyword enhancement (domain-specific boosting)
 3. TF-IDF term extraction (important term identification)
 """

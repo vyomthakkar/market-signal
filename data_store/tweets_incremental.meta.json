@@ -1,6 +1,6 @@
 {
-  "created_at": "2025-10-05T10:35:41.160120",
-  "tweet_count": 1999,
+  "created_at": "2025-10-05T10:44:23.801064",
+  "tweet_count": 2030,
   "columns": [
     "tweet_id",
     "username",
@@ -34,11 +34,11 @@
     "processed_at": "object"
   },
   "compression": "snappy",
-  "file_size_bytes": 529950,
+  "file_size_bytes": 536822,
   "parquet_file": "tweets_incremental.parquet",
   "language_distribution": {
-    "en": 1804,
-    "unknown": 64,
+    "en": 1826,
+    "unknown": 73,
     "de": 16,
     "id": 12,
     "nl": 9,
@@ -69,5 +69,5 @@
     "gu": 1,
     "cy": 1
   },
-  "unique_users": 887
+  "unique_users": 894
 }
