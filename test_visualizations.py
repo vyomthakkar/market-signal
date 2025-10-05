@@ -24,12 +24,18 @@ print("="*80)
 # Load data
 print("\nLoading data from data_store/tweets_incremental.parquet...")
 df_raw = pd.read_parquet('data_store/tweets_incremental.parquet')
-df_en = df_raw[df_raw['detected_language'] == 'en']
-print(f"Loaded {len(df_en)} English tweets out of {len(df_raw)} total")
+print(f"Loaded {len(df_raw)} tweets")
 
-# Analyze tweets (use subset for testing)
-print(f"\nAnalyzing tweets with sentiment, engagement, TF-IDF, and signals...")
-tweets = df_en.head(200).to_dict('records')  # First 200 for faster testing
+# Show language distribution
+if 'detected_language' in df_raw.columns:
+    print(f"\nLanguage distribution:")
+    for lang, count in df_raw['detected_language'].value_counts().head(10).items():
+        print(f"  {lang}: {count}")
+
+# Analyze ALL tweets (all languages)
+print(f"\nAnalyzing ALL {len(df_raw)} tweets (all languages) with sentiment, engagement, TF-IDF, and signals...")
+print("This may take a few minutes...")
+tweets = df_raw.to_dict('records')  # ALL tweets, all languages
 df_analyzed = analyze_tweets(tweets)
 
 print(f"\n✅ Analysis complete!")

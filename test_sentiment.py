@@ -55,28 +55,42 @@ def test_batch():
     
     import pandas as pd
     
-    # Load and filter to English only before analysis
+    # Load ALL tweets (all languages)
     df_raw = pd.read_parquet('data_store/tweets_incremental.parquet')
-    df_en = df_raw[df_raw['detected_language'] == 'en']
-    print(f"Loaded {len(df_en)} English tweets out of {len(df_raw)} total")
+    print(f"Loaded {len(df_raw)} tweets (all languages)")
     
-    # Analyze (use first 50 for testing)
-    tweets = df_en.head(50).to_dict('records')
+    # Show language distribution
+    if 'detected_language' in df_raw.columns:
+        print(f"\nLanguage distribution:")
+        for lang, count in df_raw['detected_language'].value_counts().head(10).items():
+            print(f"  {lang}: {count}")
+    
+    # Analyze ALL tweets (all languages)
+    print(f"\nAnalyzing ALL {len(df_raw)} tweets (this may take a few minutes)...")
+    tweets = df_raw.to_dict('records')
     
     from analysis.features import analyze_tweets
     df = analyze_tweets(tweets)
     
     # Save results
     df.to_parquet('sentiment_results.parquet', index=False)
+    print(f"✓ Saved complete results to sentiment_results.parquet")
     
-    print(f"\n📊 Summary:")
-    print(f"  Total tweets: {len(df)}")
+    # Display summary for first 50 tweets
+    df_display = df.head(50)
+    
+    print(f"\n📊 Summary (Full Dataset):")
+    print(f"  Total tweets analyzed: {len(df)}")
     print(f"\n  Sentiment Distribution:")
     print(df['combined_sentiment_label'].value_counts())
+    print(f"\n  Signal Distribution:")
+    print(df['signal_label'].value_counts())
     print(f"\n  Average sentiment: {df['combined_sentiment_score'].mean():.3f}")
     print(f"  Average confidence: {df['confidence'].mean():.3f}")
     
-    return df
+    print(f"\n📋 Displaying first 50 tweets for review...")
+    
+    return df_display
 
 
 def display_results_summary(df):
