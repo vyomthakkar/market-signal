@@ -1,43 +1,12 @@
-# Market Signal Twitter Scraper 📊
+# Market Signal Analysis System 📊
 
-A robust Twitter/X scraper for collecting market-related tweets from Indian stock market discussions.
-
-## 🎯 Purpose
-
-Scrape tweets about Indian stock market hashtags (#nifty50, #sensex, #intraday, #banknifty) for sentiment analysis and market signal detection.
-
-## 📁 Project Structure
-
-```
-market-signal/
-├── src/                          # Source code
-│   ├── __init__.py
-│   ├── model.py                  # Pydantic data models
-│   └── scrapers/
-│       ├── __init__.py
-│       └── playwright_scrapper.py  # Working scraper (recommended)
-├── archive/                      # Non-working/experimental code
-│   ├── scrapers/
-│   │   ├── README.md            # Why these don't work
-│   │   ├── snscrape_scraper.py  # ❌ Python 3.13 incompatible
-│   │   ├── twscrape_scraper.py  # ⚠️ Returns 0 tweets
-│   │   └── nitter_scraper.py    # ⚠️ Unreliable
-├── tests/                        # Tests (to be added)
-├── docs/                         # Documentation
-├── run_scraper.py               # Main entry point
-├── requirements.txt             # Dependencies
-├── SCRAPER_COMPARISON.md        # Detailed scraper comparison
-└── README.md                    # This file
-```
+A three-phase pipeline for collecting, analyzing, and visualizing market sentiment from Twitter/X discussions about Indian stock market indices.
 
 ## 🚀 Quick Start
 
-### 1. Installation
+### Installation
 
 ```bash
-# Clone or download the repository
-cd market-signal
-
 # Create virtual environment
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -45,149 +14,183 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Install Playwright browsers
+# Install Playwright browsers (for data collection)
 playwright install chromium
 ```
 
-### 2. Configure Credentials
+### Configure Twitter Credentials
 
-Edit `src/scrapers/playwright_scrapper.py` lines 403-405:
-
-```python
-TWITTER_USERNAME = "your_username"
-TWITTER_PASSWORD = "your_password"
-TWITTER_EMAIL = "your_email"  # If Twitter asks for verification
-```
-
-### 3. Run the Scraper
-
-```bash
-# Option 1: Use the main entry point
-python run_scraper.py
-
-# Option 2: Run directly
-python src/scrapers/playwright_scrapper.py
-```
-
-## 📊 Output
-
-The scraper produces two JSON files:
-
-### `raw_tweets.json`
-```json
-[
-  {
-    "tweet_id": "1234567890",
-    "username": "trader123",
-    "timestamp": "2025-10-04T10:30:00",
-    "content": "Tweet text here #nifty50",
-    "replies": 5,
-    "retweets": 12,
-    "likes": 45,
-    "views": 1200,
-    "hashtags": ["nifty50"],
-    "mentions": ["username"]
-  }
-]
-```
-
-### `collection_stats.json`
+Create `config/credentials.json`:
 ```json
 {
-  "nifty50": {
-    "collected": 50,
-    "target": 50,
-    "percentage": 100.0
-  },
-  "sensex": {
-    "collected": 48,
-    "target": 50,
-    "percentage": 96.0
-  }
+  "twitter_username": "your_username",
+  "twitter_password": "your_password",
+  "twitter_email": "your_email"
 }
 ```
 
-## ⚙️ Configuration
+---
 
-Edit `src/scrapers/playwright_scrapper.py` to customize:
+## 📥 Phase 1: Data Collection
 
-```python
-# Target hashtags
-hashtags = ['nifty50', 'sensex', 'intraday', 'banknifty']
+Collect tweets using the incremental scraper (supports one hashtag at a time or batch mode).
 
-# Tweets per hashtag (50 for testing, 500+ for production)
-tweets_per_tag = 50
-
-# Browser visibility (False = visible, True = hidden)
-headless = False
+### Single Hashtag Collection
+```bash
+python incremental_scraper.py nifty --count 500
+python incremental_scraper.py sensex --count 400
+python incremental_scraper.py banknifty --count 300
 ```
 
-## 🔧 Features
+### Batch Collection
+```bash
+python run/1_collect_data.py --hashtags nifty sensex banknifty --count 500
+```
 
-✅ **Smart Scroll Detection**
-- Stops after 3 consecutive scrolls with no new tweets
-- Stops after 5 scrolls with unchanged page height
+### Output Location: `data_store/`
+```
+data_store/
+├── tweets_incremental.json         # Raw tweet data (JSON)
+├── tweets_incremental.parquet      # Optimized format
+├── tweets_incremental.meta.json    # Collection metadata
+└── scraping_metadata.json          # Per-hashtag stats
+```
 
-✅ **Deduplication**
-- Removes duplicate tweets across hashtags
-- Based on unique tweet IDs
-
-✅ **Rate Limiting**
-- Random delays between searches (5-10 seconds)
-- Human-like scrolling behavior
-
-✅ **Statistics**
-- Per-hashtag collection statistics
-- Success rate tracking
-- Duplicate detection
-
-✅ **Error Handling**
-- Handles verification challenges
-- Graceful degradation
-- Detailed logging
-
-## 📚 Documentation
-
-- **`SCRAPER_COMPARISON.md`** - Comparison of all scraper approaches
-- **`archive/scrapers/README.md`** - Why alternative scrapers don't work
-- **`SCRAPER_IMPROVEMENTS.md`** - Implementation improvements log
-
-## 🧪 Data Model
-
-See `src/model.py` for the Pydantic Tweet model with validation.
-
-## 🐛 Troubleshooting
-
-### Login Issues
-- Check credentials in the script
-- Provide email if Twitter asks for verification
-- Check for CAPTCHA (run with `headless=False` to see browser)
-
-### No Tweets Collected
-- Hashtag might have limited recent content
-- Rate limiting - wait 15 minutes and retry
-- Check Twitter account isn't suspended
-
-### Slow Performance
-- Increase `headless` to True for faster execution
-- Reduce `tweets_per_tag` for testing
-- Check internet connection
-
-## 📝 License
-
-This is a personal project for educational purposes. Respect Twitter's Terms of Service and rate limits.
-
-## 🤝 Contributing
-
-This is a personal project, but suggestions are welcome!
-
-## 📧 Support
-
-For issues, check:
-1. `SCRAPER_COMPARISON.md` for scraper options
-2. `archive/scrapers/README.md` for known issues
-3. GitHub issues (if repository is public)
+**What you get:**
+- Deduplicated tweets across all hashtags
+- Engagement metrics (likes, retweets, replies)
+- Automatic merging with existing data
+- Collection statistics per hashtag
 
 ---
 
-**Note:** Only the Playwright scraper (`src/scrapers/playwright_scrapper.py`) is currently working. Other scrapers in `archive/` are kept for reference but are not functional.
+## 📊 Phase 2: Signal Analysis
+
+Analyze collected tweets to generate market sentiment signals and confidence scores.
+
+### Run Analysis
+```bash
+# Analyze all tweets, show details for target hashtags
+python run/2_analyze_signals.py
+
+# Specify custom target hashtags
+python run/2_analyze_signals.py --hashtags nifty sensex banknifty
+
+# Analyze all hashtags equally (no target focus)
+python run/2_analyze_signals.py --all-hashtags
+```
+
+### Output Location: `output/`
+```
+output/
+├── analyzed_tweets.parquet         # Tweet-level analysis with features
+└── signal_report.json              # Market signal report
+```
+
+**What you get:**
+- **Overall market sentiment** (aggregated from all tweets)
+- **Per-hashtag signal scores** (-1.0 bearish to +1.0 bullish)
+- **Confidence levels** (content quality + sentiment strength + social proof)
+- **Sentiment distribution** (bullish/bearish/neutral percentages)
+- **Trending terms** per hashtag
+- **Risk indicators** (volatility, signal disagreement)
+- **Trading recommendations** based on signals
+
+---
+
+## 📈 Phase 3: Visualization
+
+Generate charts and interactive dashboards from analysis results.
+
+### Run Visualization
+```bash
+python run/3_visualize_results.py
+```
+
+### Output Location: `output/visualizations/`
+```
+output/visualizations/
+├── signal_distribution.png              # Overall signal & confidence distribution
+├── signal_timeline.png                  # Signals over time
+├── confidence_components.png            # Confidence factor analysis
+├── interactive_dashboard.html           # Interactive web dashboard
+├── target_signal_scores.png             # Target hashtag signal comparison
+├── target_sentiment_distribution.png    # Sentiment breakdown by hashtag
+└── target_volume_confidence.png         # Volume vs confidence scatter
+```
+
+**What you get:**
+- **Signal distribution charts** - View overall market sentiment patterns
+- **Confidence analysis** - Understand what drives signal reliability
+- **Target hashtag visuals** - Compare performance across key indices
+- **Interactive dashboard** - Explore data dynamically in your browser
+
+---
+
+## 🔄 Incremental Data Collection
+
+The `incremental_scraper.py` supports continuous data collection without losing previous data:
+
+### Features
+- **Automatic deduplication** - Never stores duplicate tweets
+- **Safe merging** - Appends new data to existing dataset
+- **Running totals** - Shows cumulative counts per hashtag
+- **Crash-safe** - Previous data always preserved
+
+### Example Workflow
+```bash
+# Day 1: Initial collection
+python incremental_scraper.py nifty --count 500
+
+# Day 2: Add more data for same hashtag
+python incremental_scraper.py nifty --count 300  # Adds to existing
+
+# Day 3: Add different hashtag
+python incremental_scraper.py sensex --count 400  # Merges with previous
+```
+
+All data accumulates in `data_store/tweets_incremental.parquet` with automatic deduplication.
+
+---
+
+## 📁 Project Structure
+
+```
+market-signal/
+├── run/                        # Main execution scripts
+│   ├── 1_collect_data.py      # Phase 1: Data collection wrapper
+│   ├── 2_analyze_signals.py   # Phase 2: Signal analysis
+│   └── 3_visualize_results.py # Phase 3: Generate visualizations
+├── src/                        # Source code modules
+│   ├── analysis/              # Feature extraction & analysis
+│   ├── config/                # Configuration management
+│   ├── core/                  # Core utilities (rate limiting, etc.)
+│   └── data/                  # Data processing & storage
+├── data_store/                 # Phase 1 outputs (created at runtime)
+├── output/                     # Phase 2 & 3 outputs (created at runtime)
+├── docs/                       # Documentation
+├── incremental_scraper.py      # Incremental scraper (main tool)
+└── requirements.txt            # Python dependencies
+```
+
+---
+
+## 💡 Key Features
+
+### Sentiment Analysis
+- Multi-model sentiment scoring (TextBlob + VADER)
+- Confidence-weighted aggregation
+- Emoji and slang handling
+
+### Signal Generation
+- Volume-weighted signal scores
+- Confidence thresholds (filters low-quality tweets)
+- Risk indicators (volatility, consensus metrics)
+
+### Data Quality
+- Content quality scoring (length, linguistic features)
+- Social proof weighting (engagement metrics)
+- Automatic IGNORE classification for unreliable signals
+
+---
+
