@@ -526,19 +526,40 @@ class TwitterScraperV2:
                             const tweetLink = article.querySelector('a[href*="/status/"]');
                             const tweetId = tweetLink ? tweetLink.href.split('/status/')[1].split('?')[0] : '';
                             
-                            // Extract engagement metrics
-                            const metrics = article.querySelectorAll('[data-testid$="-count"]');
+                            // Extract engagement metrics from aria-labels
                             let replies = 0, retweets = 0, likes = 0, views = 0;
                             
-                            metrics.forEach(metric => {
-                                const testId = metric.getAttribute('data-testid');
-                                const value = metric.innerText;
-                                const count = value ? parseInt(value.replace(/[^0-9]/g, '')) || 0 : 0;
-                                
-                                if (testId.includes('reply')) replies = count;
-                                if (testId.includes('retweet')) retweets = count;
-                                if (testId.includes('like')) likes = count;
-                            });
+                            // Reply count
+                            const replyButton = article.querySelector('[data-testid="reply"]');
+                            if (replyButton) {
+                                const ariaLabel = replyButton.getAttribute('aria-label') || '';
+                                const match = ariaLabel.match(/(\d+)\s+(Reply|Replies)/i);
+                                replies = match ? parseInt(match[1]) : 0;
+                            }
+                            
+                            // Retweet count
+                            const retweetButton = article.querySelector('[data-testid="retweet"]');
+                            if (retweetButton) {
+                                const ariaLabel = retweetButton.getAttribute('aria-label') || '';
+                                const match = ariaLabel.match(/(\d+)\s+(repost|reposts|Retweet|Retweets)/i);
+                                retweets = match ? parseInt(match[1]) : 0;
+                            }
+                            
+                            // Like count
+                            const likeButton = article.querySelector('[data-testid="like"]');
+                            if (likeButton) {
+                                const ariaLabel = likeButton.getAttribute('aria-label') || '';
+                                const match = ariaLabel.match(/(\d+)\s+(Like|Likes)/i);
+                                likes = match ? parseInt(match[1]) : 0;
+                            }
+                            
+                            // Views count (from analytics link/button)
+                            const analyticsLink = article.querySelector('a[href*="/analytics"]');
+                            if (analyticsLink) {
+                                const ariaLabel = analyticsLink.getAttribute('aria-label') || '';
+                                const match = ariaLabel.match(/(\d+)\s+(view|views)/i);
+                                views = match ? parseInt(match[1]) : 0;
+                            }
                             
                             // Extract hashtags and mentions
                             const hashtags = Array.from(tweetTextElem?.querySelectorAll('a[href^="/hashtag/"]') || [])

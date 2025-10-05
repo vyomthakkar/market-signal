@@ -1,0 +1,21 @@
+{
+  "hashtags_scraped": {
+    "nifty": {
+      "scraped_count": 10,
+      "unique_added": 10,
+      "target_count": 10,
+      "scraped_at": "2025-10-05T14:40:16.518380"
+    }
+  },
+  "total_tweets": 10,
+  "created_at": "2025-10-05T14:39:47.917701",
+  "last_updated": "2025-10-05T14:40:16.518386",
+  "scraping_sessions": [
+    {
+      "hashtag": "nifty",
+      "timestamp": "2025-10-05T14:40:16.518388",
+      "tweets_added": 10,
+      "total_after": 10
+    }
+  ]
+}
