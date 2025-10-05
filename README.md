@@ -1,4 +1,5 @@
-# Market Signal Analysis System 📊
+# X/Twitter posts -> market signals
+
 
 A three-phase pipeline for collecting, analyzing, and visualizing market sentiment from Twitter/X discussions about Indian stock market indices.
 

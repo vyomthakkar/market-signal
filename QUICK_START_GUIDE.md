@@ -2,9 +2,6 @@
 
 ## ✅ Everything You Need to Know
 
-All functionality is now integrated into the `run/` directory. No scattered scripts!
-
----
 
 ## 📊 Default Workflow (Target Hashtags: nifty, nifty50, sensex, banknifty, intraday)
 
