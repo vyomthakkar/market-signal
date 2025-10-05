@@ -63,9 +63,9 @@ def test_batch():
 
 
 def display_results_summary(df):
-    """Display all tweets with sentiment and engagement in a clean, digestible format"""
+    """Display all tweets with sentiment, engagement, and TF-IDF in a clean, digestible format"""
     print("\n" + "="*100)
-    print("📋 SENTIMENT + ENGAGEMENT ANALYSIS - ALL TWEETS")
+    print("📋 COMPLETE ANALYSIS - ALL TWEETS")
     print("="*100)
     
     for idx, row in df.iterrows():
@@ -97,6 +97,13 @@ def display_results_summary(df):
         # Engagement metrics
         eng = row['total_engagement']
         print(f"   📊 Engagement: {int(eng)} total (👍 {int(row['likes'])} | 🔁 {int(row['retweets'])} | 💬 {int(row['replies'])} | 👁 {int(row['views'])})")
+        
+        # TF-IDF top terms
+        if 'top_tfidf_terms' in row and row['top_tfidf_terms']:
+            top_terms = row['top_tfidf_terms'][:5]  # Show top 5
+            if top_terms:
+                terms_str = ', '.join(top_terms)
+                print(f"   🔍 Top Terms: {terms_str}")
         
         # Show keywords if any
         keywords_info = []

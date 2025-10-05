@@ -4,10 +4,11 @@ Feature Engineering Module
 Sentiment analysis for Indian stock market tweets using:
 1. Twitter-RoBERTa base sentiment (social media understanding)
 2. Finance keyword enhancement (domain-specific boosting)
+3. TF-IDF term extraction (important term identification)
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Set
 import numpy as np
 import pandas as pd
 
@@ -19,6 +20,14 @@ try:
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
     torch = None
+
+# TF-IDF imports
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+    TfidfVectorizer = None
 
 logger = logging.getLogger(__name__)
 
@@ -333,38 +342,228 @@ class EngagementAnalyzer:
         }
 
 
+# ==================== TF-IDF Analysis ====================
+
+class TFIDFAnalyzer:
+    """
+    TF-IDF analysis for extracting important terms from tweets
+    
+    Identifies significant words/phrases that distinguish each tweet
+    from the corpus, useful for understanding key topics and trends.
+    """
+    
+    def __init__(
+        self,
+        max_features: int = 1000,
+        ngram_range: Tuple[int, int] = (1, 2),
+        min_df: int = 2,
+        max_df: float = 0.8,
+        top_n_terms: int = 10
+    ):
+        """
+        Initialize TF-IDF analyzer
+        
+        Args:
+            max_features: Maximum number of features (vocabulary size)
+            ngram_range: Range of n-grams (1,2 = unigrams + bigrams)
+            min_df: Minimum document frequency (ignore rare terms)
+            max_df: Maximum document frequency (ignore very common terms)
+            top_n_terms: Number of top terms to extract per tweet
+        """
+        self.max_features = max_features
+        self.ngram_range = ngram_range
+        self.min_df = min_df
+        self.max_df = max_df
+        self.top_n_terms = top_n_terms
+        
+        self.vectorizer = None
+        self.feature_names = None
+        self._is_fitted = False
+        
+        if not SKLEARN_AVAILABLE:
+            logger.warning("scikit-learn not available. Install: pip install scikit-learn")
+    
+    def fit(self, texts: List[str]) -> 'TFIDFAnalyzer':
+        """
+        Fit TF-IDF vectorizer on corpus
+        
+        Args:
+            texts: List of tweet texts
+            
+        Returns:
+            self for chaining
+        """
+        if not SKLEARN_AVAILABLE:
+            logger.warning("Cannot fit TF-IDF: scikit-learn not installed")
+            return self
+        
+        logger.info(f"Fitting TF-IDF on {len(texts)} tweets...")
+        
+        # Initialize vectorizer
+        self.vectorizer = TfidfVectorizer(
+            max_features=self.max_features,
+            ngram_range=self.ngram_range,
+            min_df=self.min_df,
+            max_df=self.max_df,
+            stop_words='english',
+            lowercase=True,
+            token_pattern=r'\b[a-zA-Z][a-zA-Z]+\b'  # At least 2 chars, alpha only
+        )
+        
+        # Fit on corpus
+        self.vectorizer.fit(texts)
+        self.feature_names = self.vectorizer.get_feature_names_out()
+        self._is_fitted = True
+        
+        logger.info(f"✓ TF-IDF fitted with {len(self.feature_names)} features")
+        
+        return self
+    
+    def transform(self, text: str) -> Dict:
+        """
+        Extract TF-IDF features for a single text
+        
+        Args:
+            text: Tweet content
+            
+        Returns:
+            Dictionary with top terms, scores, and vector
+        """
+        if not self._is_fitted:
+            return {
+                'top_tfidf_terms': [],
+                'top_tfidf_scores': [],
+                'tfidf_vector': [],
+                'finance_term_density': 0.0
+            }
+        
+        # Transform text to TF-IDF vector
+        tfidf_vector = self.vectorizer.transform([text]).toarray()[0]
+        
+        # Get top N terms
+        top_indices = np.argsort(tfidf_vector)[-self.top_n_terms:][::-1]
+        top_indices = [i for i in top_indices if tfidf_vector[i] > 0]  # Only non-zero
+        
+        top_terms = [self.feature_names[i] for i in top_indices]
+        top_scores = [float(tfidf_vector[i]) for i in top_indices]
+        
+        # Calculate finance term density (% of words that are finance-related)
+        words = text.lower().split()
+        if words:
+            finance_words = sum(1 for word in words if word in BULLISH_KEYWORDS or word in BEARISH_KEYWORDS)
+            finance_term_density = finance_words / len(words)
+        else:
+            finance_term_density = 0.0
+        
+        return {
+            'top_tfidf_terms': top_terms,
+            'top_tfidf_scores': top_scores,
+            'tfidf_vector': tfidf_vector.tolist(),
+            'finance_term_density': float(finance_term_density),
+            'num_tfidf_features': len(top_terms)
+        }
+    
+    def get_trending_terms(self, texts: List[str], n: int = 10) -> List[Tuple[str, float]]:
+        """
+        Get top N trending terms across all texts
+        
+        Args:
+            texts: List of tweet texts
+            n: Number of top terms to return
+            
+        Returns:
+            List of (term, average_score) tuples
+        """
+        if not self._is_fitted:
+            return []
+        
+        # Transform all texts
+        tfidf_matrix = self.vectorizer.transform(texts).toarray()
+        
+        # Calculate average TF-IDF score for each term across all documents
+        avg_scores = tfidf_matrix.mean(axis=0)
+        
+        # Get top N
+        top_indices = np.argsort(avg_scores)[-n:][::-1]
+        trending = [(self.feature_names[i], float(avg_scores[i])) for i in top_indices]
+        
+        return trending
+    
+    def get_document_similarity(self, text1: str, text2: str) -> float:
+        """
+        Calculate cosine similarity between two texts
+        
+        Args:
+            text1, text2: Texts to compare
+            
+        Returns:
+            Similarity score (0-1)
+        """
+        if not self._is_fitted:
+            return 0.0
+        
+        # Transform both texts
+        vec1 = self.vectorizer.transform([text1]).toarray()[0]
+        vec2 = self.vectorizer.transform([text2]).toarray()[0]
+        
+        # Cosine similarity
+        dot_product = np.dot(vec1, vec2)
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
+        
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+        
+        return float(dot_product / (norm1 * norm2))
+
+
 # ==================== Batch Processing ====================
 
 def analyze_tweets(
     tweets: List[Dict],
     keyword_boost_weight: float = 0.3,
-    include_engagement: bool = True
+    include_engagement: bool = True,
+    include_tfidf: bool = True
 ) -> pd.DataFrame:
     """
-    Analyze sentiment and engagement for multiple tweets
+    Analyze sentiment, engagement, and TF-IDF for multiple tweets
     
     Args:
         tweets: List of tweet dictionaries (must have 'content' or 'cleaned_content')
         keyword_boost_weight: Weight for keyword boost (default: 0.3)
         include_engagement: Whether to include engagement metrics (default: True)
+        include_tfidf: Whether to include TF-IDF features (default: True)
         
     Returns:
-        DataFrame with sentiment and engagement analysis results
+        DataFrame with sentiment, engagement, and TF-IDF analysis results
     """
     sentiment_analyzer = SentimentAnalyzer(keyword_boost_weight=keyword_boost_weight)
     engagement_analyzer = EngagementAnalyzer() if include_engagement else None
+    tfidf_analyzer = TFIDFAnalyzer() if include_tfidf else None
+    
+    # Extract content for TF-IDF fitting
+    contents = [tweet.get('cleaned_content', tweet.get('content', '')) for tweet in tweets]
+    
+    # Fit TF-IDF on entire corpus first
+    if include_tfidf and tfidf_analyzer:
+        tfidf_analyzer.fit(contents)
     
     results = []
     for i, tweet in enumerate(tweets):
-        content = tweet.get('cleaned_content', tweet.get('content', ''))
+        content = contents[i]
         
         # Sentiment analysis
         analysis = sentiment_analyzer.analyze(content)
         
         # Engagement analysis
-        if include_engagement:
+        if include_engagement and engagement_analyzer:
             engagement = engagement_analyzer.analyze(tweet)
             analysis.update(engagement)
+        
+        # TF-IDF analysis
+        if include_tfidf and tfidf_analyzer:
+            tfidf_features = tfidf_analyzer.transform(content)
+            analysis.update(tfidf_features)
         
         # Add tweet metadata
         analysis['tweet_id'] = tweet.get('tweet_id', i)
@@ -380,30 +579,41 @@ def analyze_tweets(
     df = pd.DataFrame(results)
     logger.info(f"✓ Analyzed {len(df)} tweets")
     
+    # Log trending terms if TF-IDF was used
+    if include_tfidf and tfidf_analyzer and tfidf_analyzer._is_fitted:
+        trending = tfidf_analyzer.get_trending_terms(contents, n=10)
+        logger.info(f"Top 10 trending terms: {[term for term, _ in trending]}")
+    
     return df
 
 
 def analyze_from_parquet(
     input_file: str,
     output_file: Optional[str] = None,
-    keyword_boost_weight: float = 0.3
+    keyword_boost_weight: float = 0.3,
+    include_tfidf: bool = True
 ) -> pd.DataFrame:
     """
-    Analyze sentiment from Parquet file
+    Analyze sentiment, engagement, and TF-IDF from Parquet file
     
     Args:
         input_file: Path to input Parquet file with tweets
         output_file: Optional path to save results
         keyword_boost_weight: Weight for keyword boost
+        include_tfidf: Whether to include TF-IDF features
         
     Returns:
-        DataFrame with sentiment analysis
+        DataFrame with complete analysis
     """
     logger.info(f"Loading tweets from {input_file}")
     df = pd.read_parquet(input_file)
     tweets = df.to_dict('records')
     
-    results_df = analyze_tweets(tweets, keyword_boost_weight=keyword_boost_weight)
+    results_df = analyze_tweets(
+        tweets,
+        keyword_boost_weight=keyword_boost_weight,
+        include_tfidf=include_tfidf
+    )
     
     if output_file:
         results_df.to_parquet(output_file, index=False)
