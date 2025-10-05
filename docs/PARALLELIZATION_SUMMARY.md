@@ -22,7 +22,7 @@ python run/2_analyze_signals.py --parallel --workers 4
 
 ### Benchmark Performance
 ```bash
-python test_parallel_performance.py
+python tests/test_parallel_performance.py
 ```
 
 ---

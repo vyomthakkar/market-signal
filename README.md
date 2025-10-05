@@ -163,18 +163,61 @@ All data accumulates in `data_store/tweets_incremental.parquet` with automatic d
 market-signal/
 ├── run/                        # Main execution scripts
 │   ├── 1_collect_data.py      # Phase 1: Data collection wrapper
-│   ├── 2_analyze_signals.py   # Phase 2: Signal analysis
-│   └── 3_visualize_results.py # Phase 3: Generate visualizations
-├── src/                        # Source code modules
-│   ├── analysis/              # Feature extraction & analysis
-│   ├── config/                # Configuration management
-│   ├── core/                  # Core utilities (rate limiting, etc.)
-│   └── data/                  # Data processing & storage
+│   ├── 2_analyze_signals.py   # Phase 2: Signal analysis (with --parallel support)
+│   ├── 3_visualize_results.py # Phase 3: Generate visualizations
+│   └── utils/                 # Analysis utilities
+│       ├── hashtag_analyzer.py    # Per-hashtag signal analysis
+│       ├── market_aggregator.py   # Overall market aggregation
+│       └── report_generator.py    # JSON report generation
+├── src/                        # Source code modules (detailed below)
 ├── data_store/                 # Phase 1 outputs (created at runtime)
 ├── output/                     # Phase 2 & 3 outputs (created at runtime)
-├── docs/                       # Documentation
+├── docs/                       # Technical documentation
 ├── incremental_scraper.py      # Incremental scraper (main tool)
 └── requirements.txt            # Python dependencies
+```
+
+### 📦 `src/` Module Architecture
+
+```
+src/
+├── analysis/                   # Feature extraction & signal generation
+│   ├── features.py            # Core sentiment analysis (RoBERTa + TF-IDF)
+│   │                          # - SentimentAnalyzer: RoBERTa model + keyword boost
+│   │                          # - EngagementAnalyzer: Virality scoring
+│   │                          # - TFIDFAnalyzer: Term importance extraction
+│   │                          # - Parallel processing implementation (multiprocessing.Pool)
+│   │                          # - Confidence scoring & signal generation
+│   └── visualization.py       # Chart generation (matplotlib + plotly)
+│                              # - Signal distribution plots
+│                              # - Interactive HTML dashboards
+│
+├── config/                     # Configuration management
+│   └── settings.py            # Environment-based config loader
+│                              # - Twitter credentials (JSON)
+│                              # - Scraper settings (headless, rate limits)
+│
+├── core/                       # Production-grade utilities
+│   ├── exceptions.py          # Custom exception hierarchy
+│   ├── rate_limiter.py        # Token bucket rate limiter
+│   └── retry.py               # Exponential backoff + circuit breaker
+│
+├── data/                       # Data pipeline components
+│   ├── collector.py           # TweetCollector (O(1) deduplication)
+│   │                          # - Dual data structure (list + set)
+│   ├── processor.py           # Tweet preprocessing & cleaning
+│   ├── storage.py             # Parquet/JSON storage manager
+│   │                          # - Metadata tracking
+│   │                          # - Incremental updates
+│
+├── scrapers/                   # Twitter/X data collection
+│   ├── playwright_scrapper_v2.py  # Production scraper (Playwright)
+│   │                              # - Adaptive rate limiting
+│   │                              # - Session management
+│   └── playwright_scrapper.py     # Legacy scraper (reference)
+│
+└── model.py                    # Pydantic data models
+                                # - Tweet schema validation
 ```
 
 ---
@@ -202,6 +245,34 @@ market-signal/
 - **Vectorized TF-IDF** computation
 - **Lazy model loading** (500MB RoBERTa on-demand)
 - **Multiprocessing parallelization** for sentiment analysis
+
+---
+
+## 🏗️ Technical Highlights
+
+### Architecture Patterns
+- **Three-phase pipeline**: Data collection → Analysis → Visualization
+- **Modular design**: Clear separation of concerns (scrapers, analyzers, storage)
+- **Incremental processing**: Add data without reprocessing historical tweets
+- **Configuration-driven**: JSON-based credentials and settings
+
+### Key Algorithms
+- **Sentiment Analysis**: Transformer-based (RoBERTa-125M) + rule-based keyword matching
+- **Confidence Scoring**: Multi-component weighted average (content quality + sentiment strength + social proof)
+- **TF-IDF Vectorization**: Scikit-learn with bigrams for term importance
+- **Signal Aggregation**: Confidence-weighted averaging with consensus classification
+
+### Data Flow
+```
+Twitter/X → Playwright Scraper → Parquet Storage → Feature Extraction (parallel) 
+→ Signal Generation → JSON Reports → Matplotlib/Plotly Visualizations
+```
+
+### Scalability Features
+- **Constant memory**: 10x data with same RAM (streaming + lazy loading)
+- **Parallel processing**: Near-linear scaling up to CPU core count
+- **Columnar storage**: Parquet compression (60-70% size reduction)
+- **Deduplication**: O(1) lookups handle 100K+ tweets
 
 ---
 
