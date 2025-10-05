@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple test script for sentiment analysis
+Complete test script for sentiment analysis, engagement, TF-IDF, and signal generation
 """
 
 import sys
@@ -13,7 +13,12 @@ sys.path.insert(0, str(src_path))
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
-from analysis.features import SentimentAnalyzer, analyze_from_parquet
+from analysis.features import (
+    SentimentAnalyzer, 
+    analyze_from_parquet,
+    calculate_trading_signal,
+    aggregate_signals
+)
 
 
 def test_single_tweet():
@@ -45,81 +50,85 @@ def test_single_tweet():
 def test_batch():
     """Test on the full dataset"""
     print("\n" + "="*80)
-    print("TEST: Batch Analysis on tweets_english.parquet")
+    print("TEST: Batch Analysis on data_store/tweets_incremental.parquet")
     print("="*80)
     
-    df = analyze_from_parquet(
-        'tweets_english.parquet',
-        output_file='sentiment_results.parquet'
-    )
+    import pandas as pd
+    
+    # Load and filter to English only before analysis
+    df_raw = pd.read_parquet('data_store/tweets_incremental.parquet')
+    df_en = df_raw[df_raw['detected_language'] == 'en']
+    print(f"Loaded {len(df_en)} English tweets out of {len(df_raw)} total")
+    
+    # Analyze (use first 50 for testing)
+    tweets = df_en.head(50).to_dict('records')
+    
+    from analysis.features import analyze_tweets
+    df = analyze_tweets(tweets)
+    
+    # Save results
+    df.to_parquet('sentiment_results.parquet', index=False)
     
     print(f"\n📊 Summary:")
     print(f"  Total tweets: {len(df)}")
     print(f"\n  Sentiment Distribution:")
     print(df['combined_sentiment_label'].value_counts())
     print(f"\n  Average sentiment: {df['combined_sentiment_score'].mean():.3f}")
+    print(f"  Average confidence: {df['confidence'].mean():.3f}")
     
     return df
 
 
 def display_results_summary(df):
-    """Display all tweets with sentiment, engagement, and TF-IDF in a clean, digestible format"""
+    """Display all tweets with complete analysis including signals and confidence"""
     print("\n" + "="*100)
-    print("📋 COMPLETE ANALYSIS - ALL TWEETS")
+    print("📋 COMPLETE ANALYSIS WITH TRADING SIGNALS")
     print("="*100)
     
     for idx, row in df.iterrows():
-        # Sentiment emoji
-        score = row['combined_sentiment_score']
-        label = row['combined_sentiment_label']
-        
-        if label == 'BULLISH':
+        # Signal label emoji
+        signal_label = row.get('signal_label', 'HOLD')
+        if 'BUY' in signal_label:
             emoji = '🟢'
-        elif label == 'BEARISH':
+        elif 'SELL' in signal_label:
             emoji = '🔴'
+        elif signal_label == 'IGNORE':
+            emoji = '⚫'
         else:
             emoji = '⚪'
         
-        # Score bar visualization
-        bar_length = 20
-        filled = int(((score + 1) / 2) * bar_length)  # Map -1 to +1 → 0 to 20
-        bar = '█' * filled + '░' * (bar_length - filled)
-        
-        print(f"\n{emoji} Tweet #{idx+1} | Sentiment: {score:+.2f} ({label}) | Virality: {row['virality_score']:.2f}")
-        print(f"   [{bar}] -1 ←→ +1")
-        
         # Tweet content (truncated)
         content = row['content']
-        if len(content) > 90:
-            content = content[:87] + "..."
-        print(f"   💬 {content}")
+        if len(content) > 80:
+            content = content[:77] + "..."
         
-        # Engagement metrics
-        eng = row['total_engagement']
-        print(f"   📊 Engagement: {int(eng)} total (👍 {int(row['likes'])} | 🔁 {int(row['retweets'])} | 💬 {int(row['replies'])} | 👁 {int(row['views'])})")
+        # Signal score and confidence
+        signal_score = row.get('signal_score', 0.0)
+        confidence = row.get('confidence', 0.0)
+        ci_low, ci_high = row.get('confidence_interval', (0.0, 0.0))
+        
+        print(f"\n{emoji} Tweet #{idx+1} | Signal: {signal_score:+.2f} ({signal_label}) | Confidence: {confidence:.2f}")
+        print(f"   💬 {content}")
+        print(f"   📊 Sentiment: {row['combined_sentiment_score']:+.2f} | Virality: {row['virality_score']:.2f} | Finance: {row['finance_term_density']:.1%}")
+        print(f"   🎯 Confidence Interval: [{ci_low:+.2f}, {ci_high:+.2f}]")
+        
+        # Confidence components
+        if 'confidence_components' in row:
+            components = row['confidence_components']
+            print(f"   📈 Quality: {components['content_quality']:.2f} | Sentiment Str: {components['sentiment_strength']:.2f} | Social: {components['social_proof']:.2f}")
         
         # TF-IDF top terms
         if 'top_tfidf_terms' in row and row['top_tfidf_terms']:
-            top_terms = row['top_tfidf_terms'][:5]  # Show top 5
+            top_terms = row['top_tfidf_terms'][:3]  # Show top 3
             if top_terms:
                 terms_str = ', '.join(top_terms)
                 print(f"   🔍 Top Terms: {terms_str}")
-        
-        # Show keywords if any
-        keywords_info = []
-        if row['bullish_keyword_count'] > 0:
-            keywords_info.append(f"✅ {row['bullish_keyword_count']} bullish")
-        if row['bearish_keyword_count'] > 0:
-            keywords_info.append(f"❌ {row['bearish_keyword_count']} bearish")
-        
-        if keywords_info:
-            print(f"   🔑 {' | '.join(keywords_info)}")
         
         print("   " + "-"*96)
 
 
 if __name__ == "__main__":
-    print("\n🎯 SENTIMENT ANALYSIS TEST")
+    print("\n🎯 COMPLETE SIGNAL GENERATION TEST")
     
     try:
         test_single_tweet()
@@ -127,6 +136,30 @@ if __name__ == "__main__":
         
         # Display all results in digestible format
         display_results_summary(df)
+        
+        # Aggregate signal summary
+        print("\n" + "="*100)
+        print("📊 AGGREGATE MARKET SIGNAL")
+        print("="*100)
+        
+        # Convert DataFrame rows to list of dicts for aggregation
+        signals = df.to_dict('records')
+        aggregate = aggregate_signals(signals, min_confidence=0.3)
+        
+        print(f"\n🎯 Composite Signal: {aggregate['aggregate_signal']:+.2f} ({aggregate['aggregate_label']})")
+        print(f"   Confidence: {aggregate['aggregate_confidence']:.2f}")
+        print(f"   Confidence Interval: [{aggregate['confidence_interval'][0]:+.2f}, {aggregate['confidence_interval'][1]:+.2f}]")
+        print(f"   Market Consensus: {aggregate['consensus']}")
+        print(f"\n📊 Statistics:")
+        print(f"   Total tweets analyzed: {aggregate['num_tweets']}")
+        print(f"   Valid signals (conf > 0.3): {aggregate['num_valid_tweets']}")
+        print(f"   Signal std deviation: {aggregate['signal_std']:.3f}")
+        print(f"   Bullish ratio: {aggregate['bullish_ratio']:.1%}")
+        print(f"   Bearish ratio: {aggregate['bearish_ratio']:.1%}")
+        
+        # Signal distribution
+        print(f"\n📈 Signal Distribution:")
+        print(df['signal_label'].value_counts())
         
         print("\n" + "="*100)
         print("✅ Analysis complete! Results saved to sentiment_results.parquet")

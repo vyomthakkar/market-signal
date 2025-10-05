@@ -5,17 +5,41 @@
       "unique_added": 500,
       "target_count": 500,
       "scraped_at": "2025-10-05T14:57:36.884288"
+    },
+    "banknifty": {
+      "scraped_count": 500,
+      "unique_added": 458,
+      "target_count": 500,
+      "scraped_at": "2025-10-05T15:13:33.317215"
+    },
+    "sensex": {
+      "scraped_count": 89,
+      "unique_added": 24,
+      "target_count": 500,
+      "scraped_at": "2025-10-05T15:22:52.079287"
     }
   },
-  "total_tweets": 500,
+  "total_tweets": 982,
   "created_at": "2025-10-05T14:47:06.492774",
-  "last_updated": "2025-10-05T14:57:36.884295",
+  "last_updated": "2025-10-05T15:22:52.079297",
   "scraping_sessions": [
     {
       "hashtag": "nifty50",
       "timestamp": "2025-10-05T14:57:36.884296",
       "tweets_added": 500,
       "total_after": 500
+    },
+    {
+      "hashtag": "banknifty",
+      "timestamp": "2025-10-05T15:13:33.317225",
+      "tweets_added": 458,
+      "total_after": 958
+    },
+    {
+      "hashtag": "sensex",
+      "timestamp": "2025-10-05T15:22:52.079299",
+      "tweets_added": 24,
+      "total_after": 982
     }
   ]
 }

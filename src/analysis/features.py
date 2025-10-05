@@ -517,25 +517,265 @@ class TFIDFAnalyzer:
         return float(dot_product / (norm1 * norm2))
 
 
+# ==================== Signal Generation with Confidence ====================
+
+def calculate_confidence_score(tweet_features: Dict) -> Dict[str, float]:
+    """
+    Calculate confidence score (0-1) from multiple features
+    
+    Confidence indicates how much we should trust the signal.
+    Higher confidence = More reliable signal
+    
+    Components:
+    - Content quality (40%): From TF-IDF analysis
+    - Sentiment strength (30%): From RoBERTa model confidence
+    - Social proof (30%): From engagement/virality
+    
+    Args:
+        tweet_features: Dictionary with all tweet features
+        
+    Returns:
+        Dict with confidence score and component breakdown
+    """
+    # 1. Content Quality (from TF-IDF) - 40% weight
+    finance_density = tweet_features.get('finance_term_density', 0.0)
+    top_terms = set(tweet_features.get('top_tfidf_terms', []))
+    
+    # Base quality from finance density (10% density = max score)
+    quality_score = min(finance_density * 10, 1.0)
+    
+    # Penalize spam terms
+    spam_terms = {'join', 'telegram', 'dm', 'subscribe', 'link', 'whatsapp', 
+                  'channel', 'click', 'follow', 'free'}
+    if top_terms & spam_terms:
+        quality_score *= 0.3  # 70% penalty for spam
+    
+    # Boost for technical/analysis terms
+    technical_terms = {'breakout', 'breakdown', 'support', 'resistance',
+                      'target', 'stop loss', 'levels', 'rsi', 'macd',
+                      'analysis', 'chart', 'pattern'}
+    if top_terms & technical_terms:
+        quality_score = min(quality_score * 1.3, 1.0)  # 30% boost
+    
+    
+    # 2. Sentiment Strength (from RoBERTa) - 30% weight
+    sentiment_confidence = tweet_features.get('base_confidence', 0.5)
+    
+    
+    # 3. Social Proof (from engagement) - 30% weight
+    virality_score = tweet_features.get('virality_score', 0.0)
+    
+    
+    # Combined confidence (weighted average)
+    confidence = (
+        quality_score * 0.40 +
+        sentiment_confidence * 0.30 +
+        virality_score * 0.30
+    )
+    
+    return {
+        'confidence': float(np.clip(confidence, 0.0, 1.0)),
+        'confidence_components': {
+            'content_quality': float(quality_score),
+            'sentiment_strength': float(sentiment_confidence),
+            'social_proof': float(virality_score)
+        }
+    }
+
+
+def calculate_trading_signal(tweet_features: Dict) -> Dict:
+    """
+    Generate trading signal with confidence score and interval
+    
+    Formula:
+    - Base signal = sentiment × (base_weight + virality_boost)
+    - Final signal = base_signal × confidence
+    - Confidence interval = signal ± margin (based on confidence)
+    
+    Args:
+        tweet_features: Dictionary with all tweet features
+        
+    Returns:
+        Dict with signal score, label, confidence, and interval
+    """
+    # 1. Calculate base signal (sentiment × virality)
+    sentiment = tweet_features.get('combined_sentiment_score', 0.0)
+    virality = tweet_features.get('virality_score', 0.0)
+    
+    # Base signal: sentiment weighted by engagement
+    base_signal = sentiment * (0.5 + virality * 0.5)
+    
+    
+    # 2. Calculate confidence from multiple features
+    confidence_result = calculate_confidence_score(tweet_features)
+    confidence = confidence_result['confidence']
+    
+    
+    # 3. Adjust signal by confidence
+    # High confidence → Keep signal as-is
+    # Low confidence → Dampen signal toward 0
+    final_signal = base_signal * confidence
+    
+    
+    # 4. Determine label with confidence thresholds
+    if confidence < 0.3:
+        label = 'IGNORE'  # Too low confidence to act
+        strength = 'NONE'
+    elif abs(final_signal) < 0.2:
+        label = 'HOLD'
+        strength = 'WEAK'
+    elif final_signal >= 0.5:
+        label = 'STRONG_BUY'
+        strength = 'STRONG'
+    elif final_signal > 0.2:
+        label = 'BUY'
+        strength = 'MODERATE'
+    elif final_signal <= -0.5:
+        label = 'STRONG_SELL'
+        strength = 'STRONG'
+    elif final_signal < -0.2:
+        label = 'SELL'
+        strength = 'MODERATE'
+    else:
+        label = 'HOLD'
+        strength = 'WEAK'
+    
+    
+    # 5. Calculate confidence interval
+    # Higher confidence = narrower interval
+    # Lower confidence = wider interval
+    interval_width = (1 - confidence) * 0.5  # Range: 0 to 0.5
+    confidence_interval_lower = max(final_signal - interval_width, -1.0)
+    confidence_interval_upper = min(final_signal + interval_width, 1.0)
+    
+    
+    return {
+        'signal_score': float(final_signal),
+        'signal_label': label,
+        'signal_strength': strength,
+        'confidence': confidence,
+        'confidence_interval': (float(confidence_interval_lower), 
+                               float(confidence_interval_upper)),
+        'base_signal': float(base_signal),  # Before confidence adjustment
+        **confidence_result  # Include confidence components
+    }
+
+
+def aggregate_signals(tweet_signals: List[Dict], min_confidence: float = 0.3) -> Dict:
+    """
+    Aggregate multiple tweet signals into a single composite signal
+    
+    Uses confidence-weighted averaging to combine signals.
+    Higher confidence tweets have more influence on the aggregate.
+    
+    Args:
+        tweet_signals: List of signal dictionaries from calculate_trading_signal()
+        min_confidence: Minimum confidence threshold to include (default: 0.3)
+        
+    Returns:
+        Dict with aggregate signal, confidence interval, and statistics
+    """
+    # Filter to tweets meeting minimum confidence
+    valid_signals = [
+        s for s in tweet_signals 
+        if s['confidence'] >= min_confidence
+    ]
+    
+    if not valid_signals:
+        return {
+            'aggregate_signal': 0.0,
+            'aggregate_label': 'HOLD',
+            'aggregate_confidence': 0.0,
+            'confidence_interval': (0.0, 0.0),
+            'num_tweets': 0,
+            'num_valid_tweets': 0,
+            'signal_std': 0.0,
+            'consensus': 'NONE'
+        }
+    
+    # Extract signals and confidences
+    signals = np.array([s['signal_score'] for s in valid_signals])
+    confidences = np.array([s['confidence'] for s in valid_signals])
+    
+    # Weighted average by confidence
+    aggregate_signal = float(np.average(signals, weights=confidences))
+    aggregate_confidence = float(np.mean(confidences))
+    
+    # Calculate statistics
+    signal_std = float(np.std(signals))
+    
+    # Confidence interval for aggregate
+    # Wider interval if signals disagree (high std) or low confidence
+    margin = signal_std * (1 - aggregate_confidence) * 0.5
+    confidence_interval_lower = max(aggregate_signal - margin, -1.0)
+    confidence_interval_upper = min(aggregate_signal + margin, 1.0)
+    
+    # Determine label
+    if aggregate_confidence < 0.4:
+        label = 'HOLD'  # Low confidence, don't act
+    elif aggregate_signal >= 0.5:
+        label = 'STRONG_BUY'
+    elif aggregate_signal > 0.2:
+        label = 'BUY'
+    elif aggregate_signal <= -0.5:
+        label = 'STRONG_SELL'
+    elif aggregate_signal < -0.2:
+        label = 'SELL'
+    else:
+        label = 'HOLD'
+    
+    # Determine consensus
+    bullish_count = sum(1 for s in signals if s > 0.2)
+    bearish_count = sum(1 for s in signals if s < -0.2)
+    total = len(signals)
+    
+    if bullish_count / total > 0.7:
+        consensus = 'STRONG_BULLISH'
+    elif bullish_count / total > 0.5:
+        consensus = 'BULLISH'
+    elif bearish_count / total > 0.7:
+        consensus = 'STRONG_BEARISH'
+    elif bearish_count / total > 0.5:
+        consensus = 'BEARISH'
+    else:
+        consensus = 'MIXED'
+    
+    return {
+        'aggregate_signal': aggregate_signal,
+        'aggregate_label': label,
+        'aggregate_confidence': aggregate_confidence,
+        'confidence_interval': (float(confidence_interval_lower), 
+                               float(confidence_interval_upper)),
+        'num_tweets': len(tweet_signals),
+        'num_valid_tweets': len(valid_signals),
+        'signal_std': signal_std,
+        'consensus': consensus,
+        'bullish_ratio': float(bullish_count / total) if total > 0 else 0.0,
+        'bearish_ratio': float(bearish_count / total) if total > 0 else 0.0
+    }
+
+
 # ==================== Batch Processing ====================
 
 def analyze_tweets(
     tweets: List[Dict],
     keyword_boost_weight: float = 0.3,
     include_engagement: bool = True,
-    include_tfidf: bool = True
+    include_tfidf: bool = True,
+    calculate_signals: bool = True
 ) -> pd.DataFrame:
     """
-    Analyze sentiment, engagement, and TF-IDF for multiple tweets
+    Analyze sentiment, engagement, TF-IDF, and generate trading signals for multiple tweets
     
     Args:
         tweets: List of tweet dictionaries (must have 'content' or 'cleaned_content')
         keyword_boost_weight: Weight for keyword boost (default: 0.3)
         include_engagement: Whether to include engagement metrics (default: True)
         include_tfidf: Whether to include TF-IDF features (default: True)
+        calculate_signals: Whether to calculate trading signals with confidence (default: True)
         
     Returns:
-        DataFrame with sentiment, engagement, and TF-IDF analysis results
+        DataFrame with complete analysis including trading signals and confidence scores
     """
     sentiment_analyzer = SentimentAnalyzer(keyword_boost_weight=keyword_boost_weight)
     engagement_analyzer = EngagementAnalyzer() if include_engagement else None
@@ -564,6 +804,11 @@ def analyze_tweets(
         if include_tfidf and tfidf_analyzer:
             tfidf_features = tfidf_analyzer.transform(content)
             analysis.update(tfidf_features)
+        
+        # Calculate trading signal with confidence
+        if calculate_signals:
+            signal = calculate_trading_signal(analysis)
+            analysis.update(signal)
         
         # Add tweet metadata
         analysis['tweet_id'] = tweet.get('tweet_id', i)
